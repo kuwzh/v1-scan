@@ -71,6 +71,19 @@ describe("données des marques", () => {
     }
   });
 
+  it("les déclinaisons confirmées de Mondial Relay sont officielles", () => {
+    for (const d of ["mondialrelay.fr", "mondialrelay.be", "mondialrelay.com"]) {
+      expect(OFFICIELS.get(d)?.id, d).toBe("mondialrelay");
+    }
+  });
+
+  it("colissimo.com et chronopost.com restent hors liste blanche (non confirmés)", () => {
+    expect(OFFICIELS.has("colissimo.com")).toBe(false);
+    expect(OFFICIELS.has("chronopost.com")).toBe(false);
+    expect(OFFICIELS.has("colissimo.fr")).toBe(true);
+    expect(OFFICIELS.has("chronopost.fr")).toBe(true);
+  });
+
   it("les domaines sûrs sont enregistrables et distincts des officiels", () => {
     for (const domaine of DOMAINES_SURS) {
       expect(analyserHote(domaine).domaine, domaine).toBe(domaine);

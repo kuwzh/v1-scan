@@ -26,6 +26,8 @@ describe("liste blanche : les domaines officiels ne lèvent aucun signal", () =>
     "https://www.leboncoin.fr/ad/vetements/123",
     "https://paiement.leboncoin.fr/checkout", // « paiement » sur un domaine officiel : normal
     "https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition=123",
+    "https://www.mondialrelay.be/",
+    "https://www.mondialrelay.com/",
     "https://www.laposte.fr/outils/suivre-vos-envois",
     "https://www.colissimo.fr/",
     "https://www.chronopost.fr/tracking-no-cms/suivi-page",
@@ -123,6 +125,7 @@ describe("imitation d'une marque dans le domaine", () => {
     ["vinted-paiement.com", "vinted", "critique"],
     ["https://leboncoin-securise.fr/validation", "leboncoin", "critique"],
     ["mondialrelay-livraison.com", "mondialrelay", "critique"],
+    ["mondialrelay-be.com", "mondialrelay", "importante"], // phishing réel : doit rester suspect
     ["mondial-relay-colis.fr", "mondialrelay", "critique"],
     ["colissimo-suivi-colis.top", "colissimo", "critique"],
     ["la-poste-suivi.com", "laposte", "critique"],
@@ -190,6 +193,24 @@ describe("imitation d'une marque dans le domaine", () => {
         marque.id,
       ).toBeGreaterThanOrEqual(rangGravite("attention"));
     }
+  });
+});
+
+describe("domaines volontairement hors liste blanche (non confirmés)", () => {
+  it.each(["https://www.colissimo.com/", "https://www.chronopost.com/"])(
+    "%s sort comme une imitation tant qu'il n'est pas confirmé",
+    (url) => {
+      const r = analyserLien(url);
+      expect(r.verdict).toBe("suspect");
+      expect(gravite(r, "lien.imitation_marque")).toBe("importante");
+    },
+  );
+
+  it("mondialrelay-be.com (phishing réel) est suspect et jamais officiel", () => {
+    const r = analyserLien("https://mondialrelay-be.com/suivi");
+    expect(r.verdict).toBe("suspect");
+    expect(r.marque?.id).toBe("mondialrelay");
+    expect(r.domaine).toBe("mondialrelay-be.com");
   });
 });
 

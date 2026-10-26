@@ -8,7 +8,7 @@ repérés et des conseils concrets.
 > L'outil aide à la décision, il ne garantit rien. Il parle de « risque » et de « signaux d'alerte »,
 > jamais d'accusation.
 
-**État : étapes 0 à 2 terminées (squelette, contrats, analyseur de liens). L'app n'est pas encore fonctionnelle.**
+**État : étapes 0 à 3 terminées (squelette, contrats, analyseur de liens, moteur de règles et scoring). L'app n'est pas encore fonctionnelle.**
 
 ## Stack
 
@@ -43,7 +43,8 @@ src/
   components/   UI
   lib/          cœur métier en TypeScript pur : aucun import de Next ni de React (règle ESLint)
     ai/         client IA, prompt, schéma zod, parsing
-    rules/      moteur de règles déterministe et pondéré
+    rules/      moteur de règles déterministe et pondéré (catalogue par famille, prix par marque)
+    analyze/    fusion règles + IA, nettoyage de la sortie de l'IA, assemblage du résultat
     links/      analyse statique des liens : nettoyage d'URL, liste blanche, imitation de marque,
                 typosquatting, raccourcisseurs, TLD à risque (aucune requête réseau)
     security/   rate limit, validation d'image, garde anti-SSRF
@@ -57,7 +58,7 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [x] 0. Squelette : Next, TypeScript, Tailwind, Vitest, ESLint, CI
 - [x] 1. Contrats : schémas zod, textes français
 - [x] 2. Analyseur de liens et de domaines
-- [ ] 3. Moteur de règles et scoring
+- [x] 3. Moteur de règles et scoring
 - [ ] 4. Client IA (extraction + évaluation, JSON structuré)
 - [ ] 5. Route `/api/v1/analyze`, rate limit, plafond de dépense, compteur d'analyses, route de feedback
 - [ ] 6. UI mobile : upload, loader, écran résultat, feedback 👍👎 anonyme
@@ -66,6 +67,24 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [ ] 9. Page Confidentialité, landing avec compteur « X annonces vérifiées »
 - [ ] 10. Lien d'annonce Vinted / Leboncoin en best-effort, derrière un flag
 - [ ] 11. README complet et checklist de mise en production
+
+## Comment le score est calculé
+
+1. **Règles** (`src/lib/rules`) : chaque signal a une gravité (`info` < `attention` < `importante` <
+   `critique`) et un poids dans une bande propre à sa gravité. Le score des règles cumule les poids
+   comme des probabilités : `100 × (1 − ∏(1 − poids))`.
+2. **Plancher** : un signal `critique` impose un plancher (70 à 85) sous lequel le score ne descend
+   jamais. Seules les règles déterministes peuvent être critiques ; l'IA n'émet que `info`,
+   `attention` ou `importante`, donc un texte piégé ne peut pas agir sur le plancher.
+3. **Fusion avec l'IA** (`src/lib/analyze/fusion.ts`) : moyenne des deux scores, sans descendre de plus de
+   10 points sous la source la plus sévère. Sans IA, c'est le score des règles.
+4. **Rassurants** : ceux qui viennent du profil (compte ancien, avis, profil vérifié) retirent au plus
+   10 points. Ils ne font jamais passer un score de « élevé » à « moyen » et ne passent jamais sous le
+   plancher. Les rassurants tirés des messages ou cités par l'IA sont affichés sans effet sur le score.
+5. **Niveau** : déduit du score final (0–29 faible, 30–59 moyen, 60–100 élevé).
+
+Les seuils et poids sont des valeurs de départ, à calibrer avec les fixtures
+(`src/lib/rules/fixtures`) puis avec le retour des utilisateurs.
 
 ## Vie privée
 

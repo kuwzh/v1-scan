@@ -3,6 +3,12 @@ import type { CodeErreur } from "../contracts/errors";
 import type { Gravite } from "../contracts/signals";
 import type { Niveau } from "../contracts/niveau";
 
+/** 45 → « 45 € », 12,5 → « 12,50 € ». */
+function formaterPrix(prix: number): string {
+  const entier = Number.isInteger(prix);
+  return `${entier ? String(prix) : prix.toFixed(2).replace(".", ",")} €`;
+}
+
 /** « colis », « paiement » (3 mots au plus). */
 function listerMots(mots: readonly string[]): string {
   return mots
@@ -120,6 +126,117 @@ export const fr = {
       jours <= 1
         ? "Le nom de domaine de ce site a été créé il y a moins de deux jours."
         : `Le nom de domaine de ce site a été créé il y a seulement ${jours} jours.`,
+  },
+
+  /**
+   * Libellés des signaux d'alerte et des éléments rassurants produits par les règles.
+   * Ils décrivent ce qui est dit ou affiché (« On te propose… »), jamais la personne.
+   */
+  regles: {
+    plateforme: {
+      whatsapp:
+        "On te propose de continuer la discussion sur WhatsApp, en dehors de la plateforme.",
+      telegram:
+        "On te propose de continuer la discussion sur Telegram, en dehors de la plateforme.",
+      autreReseau:
+        "On te propose un autre réseau ou une autre appli (Instagram, Snapchat…) pour discuter.",
+      sms: "On te propose de continuer par SMS, en dehors de la plateforme.",
+      telephone: "Un numéro de téléphone est donné pour continuer en dehors de la plateforme.",
+      email: "Une adresse e-mail est donnée pour continuer en dehors de la plateforme.",
+      horsPlateforme: "On te propose explicitement de passer en dehors de la plateforme.",
+    },
+    paiement: {
+      virement:
+        "Un paiement par virement est évoqué : il n'offre pas la protection de la plateforme.",
+      paypalProches:
+        "PayPal « entre proches » est évoqué : ce mode ne protège pas l'acheteur et ne permet aucun remboursement.",
+      paypal: "Un paiement par PayPal est évoqué, en dehors de la plateforme.",
+      lydia: "Un paiement par Lydia ou par cagnotte est évoqué, en dehors de la plateforme.",
+      cheque: "Un paiement par chèque est évoqué, en dehors de la plateforme.",
+      mandatCarteCadeau:
+        "Le paiement est demandé par mandat, carte cadeau ou crypto : impossible à récupérer en cas de problème.",
+      acompte: "Un acompte ou des arrhes sont demandés avant que tu aies reçu l'objet.",
+      coordonneesBancaires:
+        "On te demande des informations de carte bancaire (numéro, date, cryptogramme).",
+      codeSms:
+        "On te demande un code reçu par SMS ou par e-mail : il ne doit jamais être communiqué.",
+    },
+    scripts: {
+      paiementEffectueLien:
+        "Le message dit qu'un paiement a été fait et te demande de cliquer sur un lien pour le recevoir : c'est un scénario courant de faux paiement.",
+      fauxTransporteur:
+        "Le message parle d'un colis ou de frais de livraison et renvoie vers un lien qui n'est pas celui d'un transporteur connu.",
+      fraisSupplementaires:
+        "Des frais supplémentaires (douane, assurance, déblocage…) sont demandés en dehors de la plateforme.",
+      paiementSecuriseFaux:
+        "Un « paiement sécurisé » est mis en avant, mais le lien ou les informations demandées ne viennent pas de la plateforme.",
+      tropPercu:
+        "On te demande de rembourser un « trop-perçu » ou une erreur de montant : c'est un schéma classique de paiement frauduleux.",
+      rembourseApres: "On te demande d'avancer de l'argent en promettant de te rembourser ensuite.",
+      pieceIdentite: "On te demande une photo de pièce d'identité.",
+    },
+    urgence: {
+      forte: "Plusieurs formules mettent la pression pour aller vite.",
+      legere: "Une formule met la pression pour aller vite.",
+    },
+    profil: {
+      compteTresRecent: "Le compte a été créé il y a moins d'une semaine.",
+      compteRecent: "Le compte a été créé il y a moins d'un mois.",
+      compteAssezRecent: "Le compte a été créé il y a moins de trois mois.",
+      aucunAvis: "Le profil n'a encore aucun avis.",
+      peuDAvis: "Le profil n'a que quelques avis.",
+      noteBasse: "La note du profil est basse.",
+      noteTresBasse: "La note du profil est très basse.",
+      beaucoupDAnnoncesCompteRecent: "Le compte est récent mais publie déjà beaucoup d'annonces.",
+      nonVerifie: "Le profil n'est pas vérifié par la plateforme.",
+      compteAncien: "Le compte existe depuis longtemps.",
+      compteAssezAncien: "Le compte existe depuis plus d'un an.",
+      nombreuxAvis: "Le profil a de nombreux avis, avec une très bonne note.",
+      plusieursAvis: "Le profil a plusieurs avis positifs.",
+      verifie: "Le profil est vérifié par la plateforme.",
+    },
+    liens: {
+      externe: "Un lien vers un site externe est partagé. Vérifie son adresse avant de cliquer.",
+    },
+    prix: {
+      tresBas: (prix: number, marque: string) =>
+        `Le prix de ${formaterPrix(prix)} est très inférieur à ce qu'on voit d'habitude pour un article ${marque}.`,
+      bas: (prix: number, marque: string) =>
+        `Le prix de ${formaterPrix(prix)} est inhabituellement bas pour un article ${marque}.`,
+    },
+    annonce: {
+      unePhoto: "L'annonce n'a qu'une seule photo pour un article de valeur.",
+    },
+    rassurants: {
+      paiementPlateforme: "Le paiement et la livraison passent par la plateforme.",
+    },
+  },
+
+  /** Conseils concrets rattachés à certaines règles (tutoiement, formulation directe). */
+  conseilsRegles: {
+    horsPlateforme:
+      "Reste dans la messagerie de la plateforme : c'est elle qui te protège en cas de problème.",
+    paiementHors:
+      "Paie uniquement via le paiement de la plateforme, jamais par virement ou en dehors.",
+    paypalProches:
+      "Refuse PayPal « entre proches » : il n'y a aucun remboursement possible en cas de souci.",
+    mandatCarteCadeau:
+      "Ne paie jamais par mandat, carte cadeau ou crypto : ces paiements ne se récupèrent pas.",
+    coordonnees: "Ne donne jamais ton numéro de carte, sa date d'expiration ni son cryptogramme.",
+    code: "Ne communique jamais un code reçu par SMS ou par e-mail, même à quelqu'un qui dit représenter la plateforme.",
+    lien: "N'ouvre pas ce lien et ne saisis aucune information dessus. Passe par l'application ou le site officiel.",
+    paiementRecu:
+      "Si on te dit qu'un paiement t'attend, vérifie-le directement dans ton compte sur le site officiel, jamais via un lien reçu.",
+    transporteur:
+      "Les frais de livraison se règlent via la plateforme. Vérifie un suivi uniquement sur le site officiel du transporteur.",
+    identite: "Ne transmets pas de pièce d'identité à un inconnu.",
+    profilRecent: "Demande une photo de l'objet avec ton pseudo écrit à la main sur un papier.",
+    prixBas:
+      "Un prix très bas est un appât classique : demande des photos supplémentaires et des détails que seul le propriétaire peut donner.",
+    urgence: "Ne te laisse pas presser : une vraie vente peut attendre quelques heures.",
+    tropPercu:
+      "Ne rembourse jamais un trop-perçu : vérifie d'abord que l'argent est bien arrivé sur ton compte.",
+    acompte: "Ne verse pas d'acompte avant d'avoir reçu l'objet.",
   },
 
   erreurs: {

@@ -28,6 +28,12 @@ describe("extraireLiens", () => {
     ]);
   });
 
+  it("extrait en entier un nom écrit avec des lettres d'un autre alphabet", () => {
+    // « і » cyrillique dans vіnted : l'adresse ne doit pas être amputée de sa première lettre.
+    expect(extraireLiens("Paie ici : vіnted.fr/paiement")).toEqual(["vіnted.fr/paiement"]);
+    expect(extraireLiens("rdv sur münchen.de")).toEqual(["münchen.de"]);
+  });
+
   it("ignore les e-mails, les noms de fichiers et les nombres", () => {
     expect(extraireLiens("écris-moi à contact@vinted.fr")).toEqual([]);
     expect(extraireLiens("jean.dupont@gmail.com")).toEqual([]);

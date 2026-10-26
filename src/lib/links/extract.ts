@@ -2,9 +2,21 @@ import { analyserHote } from "./domain";
 import { refanger, retirerInvisibles } from "./normalize";
 
 const AVEC_SCHEMA = String.raw`(?:https?|hxxps?):\/\/[^\s<>"'«»]+`;
-const SANS_SCHEMA = String.raw`(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}(?::\d{2,5})?(?:[/?#][^\s<>"'«»]*)?`;
-const MOTIF = new RegExp(`(?:${AVEC_SCHEMA})|(?:${SANS_SCHEMA})`, "gi");
+// Lettres de tout alphabet : un nom comme « vіnted.fr » (і cyrillique) doit être extrait en
+// entier, pas amputé de sa première lettre.
+const LETTRE_OU_CHIFFRE = String.raw`[\p{L}\p{N}]`;
+const SANS_SCHEMA = String.raw`(?:${LETTRE_OU_CHIFFRE}(?:[\p{L}\p{N}-]{0,61}${LETTRE_OU_CHIFFRE})?\.)+\p{L}{2,24}(?::\d{2,5})?(?:[/?#][^\s<>"'«»]*)?`;
+const MOTIF = new RegExp(`(?:${AVEC_SCHEMA})|(?:${SANS_SCHEMA})`, "giu");
 const PONCTUATION_FINALE = /[.,;:!?)\]}»"'’]+$/;
+
+/** Hôte en ASCII (punycode) pour interroger la Public Suffix List ; inchangé s'il est invalide. */
+function enAscii(hote: string): string {
+  try {
+    return new URL(`http://${hote}`).hostname;
+  } catch {
+    return hote;
+  }
+}
 
 /**
  * Repère les adresses dans un texte (conversation collée, description) : liens complets
@@ -31,7 +43,7 @@ export function extraireLiens(texte: string, max = 20): string[] {
 
     if (!/^(?:https?|hxxps?):\/\//i.test(candidat)) {
       const hote = (candidat.split(/[/?#]/, 1)[0] ?? "").replace(/:\d+$/, "");
-      if (!analyserHote(hote).suffixeConnu) continue;
+      if (!analyserHote(enAscii(hote)).suffixeConnu) continue;
     }
 
     const cle = candidat.toLowerCase();

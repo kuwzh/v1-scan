@@ -26,6 +26,9 @@ export interface Marque {
  * Ces données sont à entretenir : un domaine officiel manquant crée un faux positif,
  * un domaine ajouté à tort crée un faux négatif. N'ajouter que des domaines dont on
  * est sûr qu'ils appartiennent à la marque.
+ *
+ * Volontairement absents (non confirmés) : colissimo.com, chronopost.com. Ils sortent
+ * donc « imitation de marque » tant qu'on n'a pas confirmé qu'ils sont officiels.
  */
 export const MARQUES: readonly Marque[] = [
   {
@@ -54,7 +57,7 @@ export const MARQUES: readonly Marque[] = [
     id: "mondialrelay",
     nom: "Mondial Relay",
     mots: ["mondialrelay"],
-    officiels: ["mondialrelay.fr"],
+    officiels: ["mondialrelay.fr", "mondialrelay.be", "mondialrelay.com"],
   },
   {
     id: "colissimo",
