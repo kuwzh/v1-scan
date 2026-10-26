@@ -1,5 +1,6 @@
 import { APP_NAME } from "../config";
 import type { CodeErreur } from "../contracts/errors";
+import { MAX_IMAGES } from "../contracts/limits";
 import type { Gravite } from "../contracts/signals";
 import type { Niveau } from "../contracts/niveau";
 
@@ -61,6 +62,8 @@ export const fr = {
   aucunSignal: "On n'a repéré aucun signal d'alerte dans ce que tu as envoyé.",
   analysePartielle:
     "Analyse partielle : l'analyse par IA n'était pas disponible, ce résultat repose uniquement sur des règles automatiques.",
+  forteAffluence:
+    "Forte affluence, analyse partielle : l'analyse par IA est suspendue pour le moment, ce résultat repose uniquement sur des règles automatiques.",
   disclaimer: `${APP_NAME} t'aide à décider, il ne garantit rien. Un risque faible ne veut pas dire « sans risque » : reste vigilant, surtout au moment de payer.`,
 
   feedback: {
@@ -245,12 +248,24 @@ export const fr = {
       "Cette image n'est pas acceptée. Envoie une capture au format JPEG, PNG ou WebP.",
     trop_de_requetes:
       "Tu as fait beaucoup de vérifications en peu de temps. Réessaie dans quelques minutes.",
-    plafond_atteint: `${APP_NAME} a atteint sa limite d'analyses pour aujourd'hui. Reviens demain.`,
+    plafond_atteint: `Forte affluence : ${APP_NAME} ne peut pas lire de captures pour le moment. Colle plutôt le texte de la conversation, ou reviens plus tard.`,
     ia_indisponible: "L'analyse n'est pas disponible pour le moment. Réessaie dans un instant.",
     analyse_impossible:
       "On n'a pas réussi à lire cette capture. Essaie avec une capture plus nette, ou colle le texte de la conversation.",
     lien_non_recuperable:
       "On n'a pas pu récupérer cette annonce. Envoie plutôt une capture de l'annonce.",
+    vote_impossible:
+      "Ce vote n'a pas pu être enregistré : il a déjà été donné, ou ce résultat est trop ancien.",
     erreur_interne: "Quelque chose s'est mal passé de notre côté. Réessaie dans un instant.",
   } satisfies Record<CodeErreur, string>,
+
+  /** Précisions pour les erreurs de validation : remplacent le message générique du code. */
+  erreursPrecises: {
+    tropDImages: `Tu peux envoyer jusqu'à ${MAX_IMAGES} captures à la fois.`,
+    imageTropLourde:
+      "Une des captures est trop lourde. Envoie-la en plus petit ou recadre la partie utile.",
+    requeteTropVolumineuse:
+      "Les captures envoyées sont trop volumineuses. Envoie-en moins ou en plus petit.",
+    corpsIllisible: "On n'a pas pu lire ta demande. Réessaie en renvoyant les captures.",
+  },
 } as const;

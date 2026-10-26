@@ -8,7 +8,7 @@ repérés et des conseils concrets.
 > L'outil aide à la décision, il ne garantit rien. Il parle de « risque » et de « signaux d'alerte »,
 > jamais d'accusation.
 
-**État : étapes 0 à 4 terminées (squelette, contrats, liens, règles et scoring, client IA et évaluation). L'app n'est pas encore fonctionnelle.**
+**État : étapes 0 à 5 terminées (squelette, contrats, liens, règles et scoring, client IA et évaluation, API et garde-fous). L'API fonctionne ; l'interface arrive à l'étape 6.**
 
 ## Stack
 
@@ -42,14 +42,16 @@ src/
   app/          pages et routes API (Next.js)
   components/   UI
   lib/          cœur métier en TypeScript pur : aucun import de Next ni de React (règle ESLint)
-    ai/         client IA, prompt, schéma zod, parsing
     rules/      moteur de règles déterministe et pondéré (catalogue par famille, prix par marque)
     ai/         client Claude : prompt, schéma de sortie, nettoyage de la réponse, erreurs
     analyze/    pipeline, fusion règles + IA, nettoyage de la sortie de l'IA, assemblage du résultat
     eval/       métriques d'évaluation (faux positifs, extraction, auteurs, coût)
     links/      analyse statique des liens : nettoyage d'URL, liste blanche, imitation de marque,
                 typosquatting, raccourcisseurs, TLD à risque (aucune requête réseau)
-    security/   rate limit, validation d'image, garde anti-SSRF
+    security/   config des garde-fous, stockage (Upstash / mémoire), IP hashée, rate limit,
+                plafond de dépense, validation des images, lecture bornée du corps
+    api/        les handlers `traiterAnalyse`, `traiterFeedback`, `traiterStats` : Request → Response,
+                sans Next ; les routes de `src/app/api/v1/` ne font que les appeler
 ```
 
 `src/lib` est volontairement indépendant du framework : il pourra être réutilisé tel quel par une
@@ -62,13 +64,58 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [x] 2. Analyseur de liens et de domaines
 - [x] 3. Moteur de règles et scoring
 - [x] 4. Client IA (extraction + évaluation, JSON structuré) et script d'évaluation
-- [ ] 5. Route `/api/v1/analyze`, rate limit, plafond de dépense, compteur d'analyses, route de feedback
+- [x] 5. Route `/api/v1/analyze`, rate limit, plafond de dépense, compteur d'analyses, route de feedback
 - [ ] 6. UI mobile : upload, loader, écran résultat, feedback 👍👎 anonyme
 - [ ] 7. Carte de partage 9:16
 - [ ] 8. PWA et Web Share Target (Android)
 - [ ] 9. Page Confidentialité, landing avec compteur « X annonces vérifiées »
 - [ ] 10. Lien d'annonce Vinted / Leboncoin en best-effort, derrière un flag
 - [ ] 11. README complet et checklist de mise en production
+
+## API
+
+| Route                   | Rôle                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/analyze`  | `multipart/form-data` : `images` (≤ 3), `texte`, `lien`. Renvoie `{ analyse_id, resultat, partielle }`. |
+| `POST /api/v1/feedback` | JSON `{ analyse_id, vote: "up" \| "down" }`. Un vote par analyse.                                       |
+| `GET /api/v1/stats`     | `{ analyses }` : le compteur public, mis en cache (CDN et mémoire).                                     |
+
+Les erreurs ont toujours la forme `{ erreur: { code, message } }` (codes dans `src/lib/contracts/errors.ts`).
+
+### Garde-fous
+
+Valeurs de départ, toutes réglables dans l'environnement (voir `.env.example`).
+
+- **Rate limit** : 10 analyses par heure et 30 par jour et par IP (`RATE_LIMIT_PER_HOUR`,
+  `RATE_LIMIT_PER_DAY`), en fenêtre glissante. Au-delà : `429` avec `Retry-After`. Appliqué avant de
+  lire le corps de la requête. Une demande refusée n'est pas décomptée. L'IP n'est jamais stockée :
+  seule une empreinte HMAC (secret `IP_HASH_SECRET`) sert de clé, avec une durée de vie de 2 jours au
+  plus. En IPv6, c'est le préfixe /64 qui est limité.
+- **Plafond de dépense** : 5 $/jour (`DAILY_SPEND_CAP_USD`, jour UTC), tous visiteurs confondus. Avant
+  chaque appel à l'IA, le coût maximal possible est _réservé_ de façon atomique, puis remplacé par le
+  coût réel : même avec des appels simultanés, le plafond ne peut pas être dépassé de plus qu'une
+  erreur d'estimation. Au-delà, l'IA est coupée : un texte reçoit une analyse « règles seules »
+  accompagnée du message « Forte affluence, analyse partielle » ; des captures seules (illisibles sans
+  IA) reçoivent l'erreur `plafond_atteint`, qui invite à coller le texte de la conversation.
+- **Feedback** : chaque analyse renvoie un `analyse_id` aléatoire. Le serveur retient seulement la
+  tranche de score (10 points) sous cet identifiant, pour une heure. Le premier vote le consomme de
+  façon atomique ; les suivants sont refusés. Le client ne fournit jamais le score, donc il ne peut
+  pas fausser les agrégats. On n'enregistre qu'un compteur par (niveau, tranche, vote), clés
+  `feedback:<niveau>:<tranche>:<vote>`, relisibles avec `lireAgregatsFeedback`.
+- **Compteur public** : un entier incrémenté à chaque analyse réussie, relu au plus toutes les
+  `COUNTER_CACHE_SECONDS` secondes (5 minutes) par instance, et mis en cache par le CDN.
+- **Images** : trois au plus, 1,3 Mo chacune, 3,6 Mo au total. Le format est vérifié d'après les
+  premiers octets (JPEG, PNG, WebP), jamais d'après le type annoncé par le client. Le corps est lu
+  en flux et abandonné dès que 3,8 Mo sont dépassés.
+- **Requêtes d'autres sites** : refusées (`Sec-Fetch-Site: cross-site`), pour qu'une page tierce ne
+  puisse pas faire payer l'IA via les navigateurs de ses visiteurs.
+
+**Sans Upstash, l'IA est coupée en production.** Le rate limit et le plafond de dépense n'ont de
+valeur que partagés entre toutes les instances : sans `UPSTASH_REDIS_REST_URL`/`_TOKEN` (et
+`IP_HASH_SECRET`), une instance serverless compterait de son côté. Dans ce cas, l'app reste utilisable
+en « règles seules » et un avertissement de configuration (sans aucun contenu) est écrit une fois dans
+le journal. En développement, un repli en mémoire est utilisé. Si Upstash tombe en cours de route,
+même comportement : les analyses restent servies sans IA.
 
 ## Comment le score est calculé
 

@@ -1,17 +1,18 @@
 import { z } from "zod";
-import { ScoreSchema } from "./niveau";
 
 /**
- * Feedback anonyme « Ce résultat était-il juste ? ». Le client n'envoie que le score
- * affiché et le vote : le niveau est déduit côté serveur et le score est réduit à une
- * tranche de 10 points avant tout stockage. Aucun contenu, aucune capture.
+ * Feedback anonyme « Ce résultat était-il juste ? ». Le client n'envoie que l'identifiant
+ * éphémère de l'analyse et son vote : le score et le niveau sont retrouvés côté serveur
+ * (jamais fournis par le client), réduits à une tranche de 10 points avant tout stockage.
+ * L'identifiant n'est valable que pour un vote et pour une durée limitée. Aucun contenu,
+ * aucune capture.
  */
 export const VOTES = ["up", "down"] as const;
 export const VoteSchema = z.enum(VOTES);
 export type Vote = z.infer<typeof VoteSchema>;
 
 export const FeedbackInputSchema = z.object({
-  score: ScoreSchema,
+  analyse_id: z.uuid(),
   vote: VoteSchema,
 });
 export type FeedbackInput = z.infer<typeof FeedbackInputSchema>;

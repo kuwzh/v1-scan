@@ -248,23 +248,40 @@ describe("AnalyzeTextInputSchema", () => {
 });
 
 describe("FeedbackInputSchema", () => {
-  it("accepte un score et un vote", () => {
-    expect(FeedbackInputSchema.safeParse({ score: 72, vote: "up" }).success).toBe(true);
+  const id = "6f1f3a52-3c1b-4a56-9d5e-0b2c7d9f1a10";
+
+  it("accepte un identifiant d'analyse et un vote", () => {
+    expect(FeedbackInputSchema.safeParse({ analyse_id: id, vote: "up" }).success).toBe(true);
   });
 
-  it("rejette un score hors limites ou un vote inconnu", () => {
-    expect(FeedbackInputSchema.safeParse({ score: 150, vote: "up" }).success).toBe(false);
-    expect(FeedbackInputSchema.safeParse({ score: 50, vote: "peut-être" }).success).toBe(false);
+  it("rejette un identifiant qui n'est pas un UUID ou un vote inconnu", () => {
+    expect(FeedbackInputSchema.safeParse({ analyse_id: "abc", vote: "up" }).success).toBe(false);
+    expect(FeedbackInputSchema.safeParse({ analyse_id: id, vote: "peut-être" }).success).toBe(
+      false,
+    );
   });
 
-  it("ne conserve rien d'autre que le score et le vote", () => {
+  it("le score n'est plus fourni par le client : il vient du serveur", () => {
+    expect(FeedbackInputSchema.safeParse({ score: 72, vote: "up" }).success).toBe(false);
+  });
+
+  it("ne conserve rien d'autre que l'identifiant et le vote", () => {
     const parsed = FeedbackInputSchema.parse({
-      score: 50,
+      analyse_id: id,
       vote: "down",
+      score: 50,
       niveau: "faible",
       texte: "contenu privé",
     });
-    expect(Object.keys(parsed).sort()).toEqual(["score", "vote"]);
+    expect(Object.keys(parsed).sort()).toEqual(["analyse_id", "vote"]);
+  });
+});
+
+describe("tranche et niveau", () => {
+  it("le niveau se retrouve à partir de la tranche : les seuils sont des multiples de 10", () => {
+    for (let score = 0; score <= 100; score++) {
+      expect(niveauPourScore(trancheDeScore(score))).toBe(niveauPourScore(score));
+    }
   });
 });
 

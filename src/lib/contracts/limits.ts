@@ -14,3 +14,9 @@ export const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as
 
 export const MAX_TEXT_CHARS = 8_000;
 export const MAX_URL_CHARS = 2_048;
+
+/**
+ * Taille maximale d'une requête d'analyse (captures + texte + lien + enveloppe multipart).
+ * Reste sous les 4,5 Mo que Vercel accepte ; le serveur la fait respecter en lisant le corps.
+ */
+export const MAX_REQUEST_BYTES = 3_800_000;
