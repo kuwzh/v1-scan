@@ -54,7 +54,7 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 ## Feuille de route
 
 - [x] 0. Squelette : Next, TypeScript, Tailwind, Vitest, ESLint, CI
-- [ ] 1. Contrats : schémas zod, textes français
+- [x] 1. Contrats : schémas zod, textes français
 - [ ] 2. Analyseur de liens et de domaines
 - [ ] 3. Moteur de règles et scoring
 - [ ] 4. Client IA (extraction + évaluation, JSON structuré)
