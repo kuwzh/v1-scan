@@ -45,6 +45,7 @@ function evaluationValide(): AiEvaluation {
         profil_verifie: false,
       },
     },
+    contenu_exploitable: true,
     score: 78,
     niveau: "élevé",
     signaux: [

@@ -82,5 +82,6 @@ export function evaluerRegles(entree: EntreeRegles): ResultatRegles {
     rassurants,
     conseils,
     constats,
+    ignorees: [...ctx.ignorees],
   };
 }

@@ -1,4 +1,6 @@
 import {
+  completerConfiance,
+  creerMessage,
   donneesExtraitesVides,
   type ExtractedData,
   type Plateforme,
@@ -41,9 +43,10 @@ export function donneesDepuisCas(cas: CasConversation): ExtractedData {
   donnees.plateforme = cas.plateforme ?? null;
   Object.assign(donnees.annonce, cas.annonce);
   Object.assign(donnees.vendeur, cas.vendeur);
-  donnees.messages = (cas.messages ?? []).map(([auteur, texte]) => ({ auteur, texte }));
+  donnees.messages = (cas.messages ?? []).map(([auteur, texte]) => creerMessage(auteur, texte));
   donnees.liens = cas.liens ?? [];
-  return donnees;
+  // Données de test : toutes sûres (confiance « haute »).
+  return completerConfiance(donnees, "haute");
 }
 
 export const CAS_SAINS: readonly CasConversation[] = [

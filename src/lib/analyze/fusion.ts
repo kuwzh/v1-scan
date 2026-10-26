@@ -42,9 +42,11 @@ function borner(n: number): number {
  *
  * 1. Base : la moyenne des deux, sans jamais descendre de plus de `MARGE_PRUDENCE` points
  *    sous la plus sévère. Sans IA, la base est le score des règles.
- * 2. Les rassurants retirent quelques points (`remise`), mais ne font jamais passer un
- *    score de « élevé » à « moyen » : un compte ancien peut être piraté, des avis peuvent
- *    être achetés.
+ * 2. Les rassurants retirent quelques points (`remise`). Mais dès qu'une des deux sources voit
+ *    « élevé », ils ne peuvent plus faire descendre le score sous la base ni sous le seuil
+ *    « élevé » : un compte ancien peut être piraté, des avis peuvent être achetés, et on ne veut
+ *    pas que la remise s'ajoute à un désaccord de l'IA (ou à une consigne cachée qu'elle aurait
+ *    suivie) pour faire changer de niveau.
  * 3. Le plancher des signaux critiques passe en dernier : rien ne descend dessous.
  */
 export function fusionnerScores(entree: EntreeFusion): ResultatFusion {
@@ -58,8 +60,9 @@ export function fusionnerScores(entree: EntreeFusion): ResultatFusion {
     base = Math.max(moyenne, Math.max(regles, ia) - MARGE_PRUDENCE);
   }
 
+  const plusSevere = Math.max(regles, entree.scoreIa === null ? 0 : borner(entree.scoreIa));
   let score = base - Math.max(0, entree.remise);
-  if (base >= SEUIL_ELEVE) score = Math.max(score, SEUIL_ELEVE);
+  if (plusSevere >= SEUIL_ELEVE) score = Math.max(score, Math.min(base, SEUIL_ELEVE));
   score = borner(Math.max(score, entree.plancher ?? 0));
 
   return { score, base, remiseAppliquee: Math.max(0, base - score) };

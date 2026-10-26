@@ -17,6 +17,9 @@ coverage
 .env.*
 !.env.example
 
+# rapports d'évaluation (peuvent contenir des conversations)
+evals/rapports/
+
 # divers
 .DS_Store
 .vercel

@@ -21,6 +21,11 @@ export const AiRassurantSchema = z.object({
 
 export const AiEvaluationSchema = z.object({
   donnees_extraites: ExtractedDataSchema,
+  /**
+   * `false` quand ce qui a été envoyé n'est ni une annonce, ni un profil, ni une conversation,
+   * ou qu'il est illisible : il n'y a alors rien à évaluer.
+   */
+  contenu_exploitable: z.boolean(),
   score: ScoreSchema,
   niveau: NiveauSchema,
   signaux: z.array(AiSignalSchema),

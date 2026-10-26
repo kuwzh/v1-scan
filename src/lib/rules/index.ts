@@ -1,5 +1,7 @@
 export { CATALOGUE, CATALOGUE_RASSURANTS } from "./catalog";
 export { collecterLiensBruts, construireContexte } from "./contexte";
+export { donneesFiables } from "./fiabilite";
+export type { DonneesFiables } from "./fiabilite";
 export { cumulerPoids, evaluerRegles } from "./moteur";
 export {
   BANDES_POIDS,

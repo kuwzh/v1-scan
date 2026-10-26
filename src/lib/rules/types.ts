@@ -20,7 +20,10 @@ export interface Segment {
 }
 
 export interface Contexte {
+  /** Données fiables : tout ce que l'IA a lu avec une confiance basse en a été retiré. */
   donnees: ExtractedData;
+  /** Chemins des données écartées pour confiance basse (`vendeur.nombre_avis`, `messages[2]`…). */
+  ignorees: readonly string[];
   plateforme: Plateforme | null;
   /** Plateformes où le paiement et la remise se font surtout en direct (Leboncoin, Marketplace). */
   plateformeLocale: boolean;
@@ -80,4 +83,6 @@ export interface ResultatRegles {
   conseils: string[];
   /** Détail avec les poids, pour les tests et le diagnostic. */
   constats: Constat[];
+  /** Données que les règles n'ont pas utilisées (confiance basse). */
+  ignorees: string[];
 }

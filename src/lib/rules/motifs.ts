@@ -20,6 +20,12 @@ export const MOTIFS = {
 
   // --- Paiement -------------------------------------------------------------------------
   virement: /\b(?:virements?|virer|virez|iban|rib)\b|\bfr\d{2}(?:\s?\d{4}){2,}/,
+  /**
+   * Indices d'une vente en direct (espèces, remise en main propre) : un virement proposé à côté
+   * décrit une vente locale, pas une sortie de plateforme. « cash » est volontairement absent :
+   * « mandat cash » est un moyen de paiement à risque.
+   */
+  venteLocale: /\b(?:especes|liquide|main propre|a la remise|sur place|main a la main|en direct)\b/,
   paypal: /\bpay\s?pal\b|\bpaypa1\b/,
   paypalProches: /\b(?:proches?|amis|famille|friends|family|entre amis|f ?& ?f)\b/,
   lydia:

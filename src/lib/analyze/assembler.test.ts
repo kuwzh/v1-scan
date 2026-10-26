@@ -20,6 +20,7 @@ const cas = (nom: string): CasConversation => {
 function iaFactice(partiel: Partial<AiEvaluation> = {}): AiEvaluation {
   return {
     donnees_extraites: donneesExtraitesVides(),
+    contenu_exploitable: true,
     score: 10,
     niveau: "faible",
     signaux: [],

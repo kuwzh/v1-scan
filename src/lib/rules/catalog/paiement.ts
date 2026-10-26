@@ -16,9 +16,12 @@ export const reglesPaiement: Regle[] = [
   {
     nom: "virement",
     evaluer: (ctx) => {
-      if (!chercher(ctx.segments, MOTIFS.virement)) return [];
-      // Sur Leboncoin ou Marketplace, le paiement se fait souvent en direct : poids réduit.
-      return ctx.plateformeLocale
+      const trouve = chercher(ctx.segments, MOTIFS.virement);
+      if (!trouve) return [];
+      // Sur Leboncoin ou Marketplace, ou quand le virement est proposé à côté d'espèces ou d'une
+      // remise en main propre, il s'agit d'une vente locale : poids réduit.
+      const local = ctx.plateformeLocale || MOTIFS.venteLocale.test(autour(trouve, 90, 90));
+      return local
         ? [constat("paiement.virement", t.virement, "attention", 0.24, { conseil: c.paiementHors })]
         : [
             constat("paiement.virement", t.virement, "importante", 0.38, {

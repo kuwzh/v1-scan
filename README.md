@@ -8,7 +8,7 @@ repérés et des conseils concrets.
 > L'outil aide à la décision, il ne garantit rien. Il parle de « risque » et de « signaux d'alerte »,
 > jamais d'accusation.
 
-**État : étapes 0 à 3 terminées (squelette, contrats, analyseur de liens, moteur de règles et scoring). L'app n'est pas encore fonctionnelle.**
+**État : étapes 0 à 4 terminées (squelette, contrats, liens, règles et scoring, client IA et évaluation). L'app n'est pas encore fonctionnelle.**
 
 ## Stack
 
@@ -44,7 +44,9 @@ src/
   lib/          cœur métier en TypeScript pur : aucun import de Next ni de React (règle ESLint)
     ai/         client IA, prompt, schéma zod, parsing
     rules/      moteur de règles déterministe et pondéré (catalogue par famille, prix par marque)
-    analyze/    fusion règles + IA, nettoyage de la sortie de l'IA, assemblage du résultat
+    ai/         client Claude : prompt, schéma de sortie, nettoyage de la réponse, erreurs
+    analyze/    pipeline, fusion règles + IA, nettoyage de la sortie de l'IA, assemblage du résultat
+    eval/       métriques d'évaluation (faux positifs, extraction, auteurs, coût)
     links/      analyse statique des liens : nettoyage d'URL, liste blanche, imitation de marque,
                 typosquatting, raccourcisseurs, TLD à risque (aucune requête réseau)
     security/   rate limit, validation d'image, garde anti-SSRF
@@ -59,7 +61,7 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [x] 1. Contrats : schémas zod, textes français
 - [x] 2. Analyseur de liens et de domaines
 - [x] 3. Moteur de règles et scoring
-- [ ] 4. Client IA (extraction + évaluation, JSON structuré)
+- [x] 4. Client IA (extraction + évaluation, JSON structuré) et script d'évaluation
 - [ ] 5. Route `/api/v1/analyze`, rate limit, plafond de dépense, compteur d'analyses, route de feedback
 - [ ] 6. UI mobile : upload, loader, écran résultat, feedback 👍👎 anonyme
 - [ ] 7. Carte de partage 9:16

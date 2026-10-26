@@ -74,6 +74,19 @@ motif(
   ["hors série", "je passe par l'appli", "sans frais de port"],
 );
 motif(
+  "venteLocale",
+  MOTIFS.venteLocale,
+  [
+    "paiement en espèces à la remise",
+    "en liquide",
+    "remise en main propre",
+    "sur place",
+    "de la main à la main",
+    "en direct",
+  ],
+  ["mandat cash", "remise de 10 %", "je t'envoie le colis"],
+);
+motif(
   "mandatCarteCadeau",
   MOTIFS.mandatCarteCadeau,
   [

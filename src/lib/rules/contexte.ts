@@ -2,6 +2,7 @@ import type { ExtractedData } from "../contracts/extracted";
 import { MAX_URL_CHARS } from "../contracts/limits";
 import { extraireLiens } from "../links/extract";
 import type { LienAnalyse } from "../links/types";
+import { donneesFiables } from "./fiabilite";
 import { normaliserTexte } from "./texte";
 import type { Contexte, EntreeRegles, Segment } from "./types";
 
@@ -20,7 +21,8 @@ function segment(
  * description, les messages (hors messages de l'acheteur) et le texte collé.
  * Sans doublon, 20 au plus.
  */
-export function collecterLiensBruts(donnees: ExtractedData, texte?: string | null): string[] {
+export function collecterLiensBruts(brutes: ExtractedData, texte?: string | null): string[] {
+  const { donnees } = donneesFiables(brutes);
   const sources = [
     donnees.annonce.description ?? "",
     ...donnees.messages.filter((m) => m.auteur !== "acheteur").map((m) => m.texte),
@@ -41,7 +43,7 @@ export function collecterLiensBruts(donnees: ExtractedData, texte?: string | nul
 }
 
 export function construireContexte(entree: EntreeRegles): Contexte {
-  const { donnees } = entree;
+  const { donnees, ignorees } = donneesFiables(entree.donnees);
 
   const description = segment("description", "vendeur", donnees.annonce.description);
   const messages: Segment[] = [];
@@ -62,6 +64,7 @@ export function construireContexte(entree: EntreeRegles): Contexte {
 
   return {
     donnees,
+    ignorees,
     plateforme,
     plateformeLocale: plateforme === "leboncoin" || plateforme === "facebook_marketplace",
     segments,

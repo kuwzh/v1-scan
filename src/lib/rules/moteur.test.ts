@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { donneesExtraitesVides, type ExtractedData } from "../contracts/extracted";
+import { creerMessage, donneesExtraitesVides, type ExtractedData } from "../contracts/extracted";
 import { SEUIL_ELEVE } from "../contracts/niveau";
 import { analyserLiens } from "../links/analyse";
 import { CATALOGUE } from "./catalog";
@@ -50,7 +50,7 @@ describe("evaluerRegles", () => {
 
   it("est déterministe : même entrée, même sortie", () => {
     const f = (d: ExtractedData) => {
-      d.messages = [{ auteur: "vendeur", texte: "Écris-moi sur WhatsApp, je préfère un virement" }];
+      d.messages = [creerMessage("vendeur", "Écris-moi sur WhatsApp, je préfère un virement")];
     };
     expect(evaluer(f)).toEqual(evaluer(f));
   });
@@ -58,7 +58,7 @@ describe("evaluerRegles", () => {
   it("cumule les signaux comme des probabilités", () => {
     const r = evaluer((d) => {
       d.plateforme = "vinted";
-      d.messages = [{ auteur: "vendeur", texte: "Écris-moi sur WhatsApp, je préfère un virement" }];
+      d.messages = [creerMessage("vendeur", "Écris-moi sur WhatsApp, je préfère un virement")];
     });
     const poids = r.constats.map((c) => c.poids);
     expect(r.scoreBrut).toBe(cumulerPoids(poids));
@@ -73,14 +73,14 @@ describe("evaluerRegles", () => {
   it("un même signal vu à deux endroits n'est compté qu'une fois", () => {
     const r = evaluer((d) => {
       d.annonce.description = "Paiement par virement possible";
-      d.messages = [{ auteur: "vendeur", texte: "On fait un virement ?" }];
+      d.messages = [creerMessage("vendeur", "On fait un virement ?")];
     });
     expect(r.signaux.filter((s) => s.id === "paiement.virement")).toHaveLength(1);
   });
 
   it("ignore les messages de l'acheteur", () => {
     const r = evaluer((d) => {
-      d.messages = [{ auteur: "acheteur", texte: "Écris-moi sur WhatsApp, virement ok ?" }];
+      d.messages = [creerMessage("acheteur", "Écris-moi sur WhatsApp, virement ok ?")];
     });
     expect(r.signaux).toEqual([]);
   });
@@ -94,15 +94,54 @@ describe("evaluerRegles", () => {
     const sur = (plateforme: "vinted" | "leboncoin") =>
       evaluer((d) => {
         d.plateforme = plateforme;
-        d.messages = [{ auteur: "vendeur", texte: "Virement ou appelle-moi au 06 12 34 56 78" }];
+        d.messages = [creerMessage("vendeur", "Virement ou appelle-moi au 06 12 34 56 78")];
       }).score;
     expect(sur("leboncoin")).toBeLessThan(sur("vinted"));
   });
 });
 
+describe("virement proposé à côté d'une vente en direct", () => {
+  const virement = (texte: string) =>
+    evaluer((d) => {
+      d.plateforme = "vinted";
+      d.messages = [creerMessage("vendeur", texte)];
+    }).constats.find((c) => c.id === "paiement.virement");
+
+  it("pèse moins quand il est proposé avec des espèces ou une remise en main propre", () => {
+    expect(
+      virement("Paiement en espèces à la remise, ou virement instantané si tu préfères.")?.gravite,
+    ).toBe("attention");
+    expect(virement("Remise en main propre, ou virement si tu es loin.")?.gravite).toBe(
+      "attention",
+    );
+  });
+
+  it("garde son poids ordinaire sans indice de vente locale", () => {
+    expect(virement("Je préfère un virement, je te donne mon IBAN.")?.gravite).toBe("importante");
+  });
+
+  it("n'atténue pas la sortie de plateforme qui l'accompagne", () => {
+    const r = evaluer((d) => {
+      d.plateforme = "vinted";
+      d.messages = [
+        creerMessage("vendeur", "Écris-moi sur WhatsApp, espèces ou virement, comme tu veux"),
+      ];
+    });
+    expect(r.constats.find((c) => c.id === "plateforme.whatsapp")?.gravite).toBe("importante");
+  });
+
+  it("« mandat cash » ne compte pas comme une vente en direct", () => {
+    const r = evaluer((d) => {
+      d.messages = [creerMessage("vendeur", "Je n'accepte que le mandat cash ou un virement")];
+    });
+    expect(r.constats.find((c) => c.id === "paiement.virement")?.gravite).toBe("importante");
+    expect(r.plancher).not.toBeNull();
+  });
+});
+
 describe("plancher des signaux critiques", () => {
   const codeSms = (d: ExtractedData) => {
-    d.messages = [{ auteur: "vendeur", texte: "Envoie-moi le code reçu par SMS" }];
+    d.messages = [creerMessage("vendeur", "Envoie-moi le code reçu par SMS")];
   };
 
   it("un signal critique impose son plancher, même seul", () => {
@@ -114,7 +153,7 @@ describe("plancher des signaux critiques", () => {
   it("relève le score au plancher quand le cumul des poids reste en dessous", () => {
     // Mandat cash : poids 0,6 (score brut 60) mais plancher 75.
     const r = evaluer((d) => {
-      d.messages = [{ auteur: "vendeur", texte: "Je n'accepte que le mandat cash" }];
+      d.messages = [creerMessage("vendeur", "Je n'accepte que le mandat cash")];
     });
     expect(r.scoreBrut).toBe(60);
     expect(r.plancher).toBe(75);
@@ -124,10 +163,10 @@ describe("plancher des signaux critiques", () => {
   it("garde le plancher le plus élevé quand il y en a plusieurs", () => {
     const r = evaluer((d) => {
       d.messages = [
-        {
-          auteur: "vendeur",
-          texte: "Envoie-moi le code reçu par SMS. Sinon paiement par mandat cash ou Neosurf.",
-        },
+        creerMessage(
+          "vendeur",
+          "Envoie-moi le code reçu par SMS. Sinon paiement par mandat cash ou Neosurf.",
+        ),
       ];
     });
     expect(r.constats.filter((c) => c.gravite === "critique").length).toBeGreaterThan(1);
@@ -149,7 +188,7 @@ describe("plancher des signaux critiques", () => {
 
   it("un lien critique impose le plancher des liens", () => {
     const r = evaluer((d) => {
-      d.messages = [{ auteur: "vendeur", texte: "Paie ici : vinted-paiement.com" }];
+      d.messages = [creerMessage("vendeur", "Paie ici : vinted-paiement.com")];
     });
     expect(r.plancher).toBe(75);
     expect(r.signaux[0]?.gravite).toBe("critique");
@@ -194,9 +233,7 @@ describe("rassurants et remise", () => {
 
   it("« paiement via la plateforme » s'affiche mais ne fait rien baisser", () => {
     const r = evaluer((d) => {
-      d.messages = [
-        { auteur: "vendeur", texte: "Le paiement se fait par Vinted, j'envoie demain." },
-      ];
+      d.messages = [creerMessage("vendeur", "Le paiement se fait par Vinted, j'envoie demain.")];
     });
     expect(r.rassurants.map((x) => x.id)).toEqual(["plateforme.paiement"]);
     expect(r.remise).toBe(0);
@@ -205,7 +242,7 @@ describe("rassurants et remise", () => {
   it("n'affiche pas « paiement via la plateforme » quand un paiement hors plateforme est évoqué", () => {
     const r = evaluer((d) => {
       d.messages = [
-        { auteur: "vendeur", texte: "Le paiement se fait par Vinted. Sinon virement possible." },
+        creerMessage("vendeur", "Le paiement se fait par Vinted. Sinon virement possible."),
       ];
     });
     expect(r.signaux.map((s) => s.id)).toContain("paiement.virement");

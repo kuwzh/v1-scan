@@ -67,6 +67,22 @@ describe("fusionnerScores : remise des rassurants", () => {
     expect(fusion({ scoreRegles: 65, remise: 10 }).remiseAppliquee).toBe(5);
   });
 
+  it("ne s'ajoute pas à un désaccord de l'IA quand une source voit « élevé »", () => {
+    // Règles 63 (« élevé »), IA obéissante à 0 : la base tombe à 53 (63 − 10). Les rassurants
+    // ne doivent pas la faire descendre encore (43, « moyen »).
+    const r = fusion({ scoreRegles: 63, scoreIa: 0, remise: 10 });
+    expect(r.base).toBe(53);
+    expect(r.score).toBe(53);
+    expect(r.remiseAppliquee).toBe(0);
+    // Même chose quand c'est l'IA qui voit « élevé » et pas les règles.
+    expect(fusion({ scoreRegles: 0, scoreIa: 63, remise: 10 }).score).toBe(53);
+  });
+
+  it("agissent normalement tant qu'aucune source ne voit « élevé »", () => {
+    expect(fusion({ scoreRegles: 55, scoreIa: 45, remise: 10 }).score).toBe(40);
+    expect(fusion({ scoreRegles: 59, scoreIa: 0, remise: 10 }).score).toBe(39);
+  });
+
   it("ne passe jamais sous le plancher", () => {
     expect(fusion({ scoreRegles: 80, plancher: 75, scoreIa: 80, remise: 10 }).score).toBe(75);
     expect(fusion({ scoreRegles: 85, plancher: 85, scoreIa: 0, remise: 10 }).score).toBe(85);
@@ -104,6 +120,15 @@ describe("fusionnerScores : propriétés sur une grille", () => {
     for (const c of cas) {
       const { base, score } = fusionnerScores(c);
       if (base >= SEUIL_ELEVE) expect(score, JSON.stringify(c)).toBeGreaterThanOrEqual(SEUIL_ELEVE);
+    }
+  });
+
+  it("quand une source voit « élevé », les rassurants ne font jamais descendre sous min(base, seuil)", () => {
+    for (const c of cas) {
+      const plusSevere = Math.max(c.scoreRegles, c.scoreIa ?? 0);
+      if (plusSevere < SEUIL_ELEVE) continue;
+      const { base, score } = fusionnerScores(c);
+      expect(score, JSON.stringify(c)).toBeGreaterThanOrEqual(Math.min(base, SEUIL_ELEVE));
     }
   });
 

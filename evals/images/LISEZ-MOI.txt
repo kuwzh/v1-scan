@@ -1,0 +1,1 @@
+Captures fictives générées par generer.mjs (application inventée « ReVente »). Aucune donnée réelle.
