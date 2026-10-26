@@ -1,0 +1,23 @@
+# dépendances
+node_modules
+.pnpm-store
+
+# next / build
+.next
+out
+build
+next-env.d.ts
+*.tsbuildinfo
+
+# tests
+coverage
+
+# secrets locaux : ne jamais commiter
+.env
+.env.*
+!.env.example
+
+# divers
+.DS_Store
+.vercel
+npm-debug.log*

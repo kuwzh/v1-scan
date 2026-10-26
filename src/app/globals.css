@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+/* Palette du niveau de risque : vert / orange / rouge (ajustée à l'étape 6). */
+@theme {
+  --color-risk-low: oklch(0.72 0.17 150);
+  --color-risk-mid: oklch(0.78 0.16 70);
+  --color-risk-high: oklch(0.63 0.22 25);
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+}
