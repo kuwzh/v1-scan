@@ -8,7 +8,7 @@ repérés et des conseils concrets.
 > L'outil aide à la décision, il ne garantit rien. Il parle de « risque » et de « signaux d'alerte »,
 > jamais d'accusation.
 
-**État : étape 0 (squelette) terminée. L'app n'est pas encore fonctionnelle.**
+**État : étapes 0 à 2 terminées (squelette, contrats, analyseur de liens). L'app n'est pas encore fonctionnelle.**
 
 ## Stack
 
@@ -44,7 +44,8 @@ src/
   lib/          cœur métier en TypeScript pur : aucun import de Next ni de React (règle ESLint)
     ai/         client IA, prompt, schéma zod, parsing
     rules/      moteur de règles déterministe et pondéré
-    links/      analyse de domaines et de liens
+    links/      analyse statique des liens : nettoyage d'URL, liste blanche, imitation de marque,
+                typosquatting, raccourcisseurs, TLD à risque (aucune requête réseau)
     security/   rate limit, validation d'image, garde anti-SSRF
 ```
 
@@ -55,7 +56,7 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 
 - [x] 0. Squelette : Next, TypeScript, Tailwind, Vitest, ESLint, CI
 - [x] 1. Contrats : schémas zod, textes français
-- [ ] 2. Analyseur de liens et de domaines
+- [x] 2. Analyseur de liens et de domaines
 - [ ] 3. Moteur de règles et scoring
 - [ ] 4. Client IA (extraction + évaluation, JSON structuré)
 - [ ] 5. Route `/api/v1/analyze`, rate limit, plafond de dépense, compteur d'analyses, route de feedback

@@ -3,6 +3,21 @@ import type { CodeErreur } from "../contracts/errors";
 import type { Gravite } from "../contracts/signals";
 import type { Niveau } from "../contracts/niveau";
 
+/** « colis », « paiement » (3 mots au plus). */
+function listerMots(mots: readonly string[]): string {
+  return mots
+    .slice(0, 3)
+    .map((m) => `« ${m} »`)
+    .join(", ");
+}
+
+/** Complément de phrase quand des mots d'appât accompagnent une imitation de marque. */
+function motsAppat(mots: readonly string[]): string {
+  return mots.length > 0
+    ? ` et contient des mots liés au paiement ou à la livraison (${listerMots(mots)})`
+    : "";
+}
+
 /**
  * Tous les textes affichés à l'utilisateur, en français et au tutoiement.
  * Wording prudent : « risque », « signaux d'alerte ». Jamais d'accusation.
@@ -66,6 +81,46 @@ export const fr = {
       "En cas de doute, arrête la discussion et signale l'annonce à la plateforme.",
     ],
   } satisfies Record<Niveau, string[]>,
+
+  /**
+   * Libellés des signaux d'alerte sur les liens. Ils décrivent l'adresse, jamais la
+   * personne qui l'a envoyée. Les domaines affichés sont toujours en ASCII.
+   */
+  liens: {
+    sousDomainePiege: (officiel: string, reel: string) =>
+      `Le lien commence par « ${officiel} » mais mène en réalité vers « ${reel} », un autre site.`,
+    identifiantsTrompeurs: (affiche: string, reel: string) =>
+      `Le lien affiche « ${affiche} » avant un « @ », mais l'adresse réelle est « ${reel} ».`,
+    identifiantsInhabituels: (reel: string) =>
+      `Le lien contient un identifiant avant un « @ », ce qui peut masquer l'adresse réelle (« ${reel} »).`,
+    imitationMarque: (nom: string, domaine: string, mots: readonly string[]) =>
+      `L'adresse « ${domaine} » reprend le nom de ${nom} sans être son site officiel${motsAppat(mots)}.`,
+    marqueSousDomaine: (nom: string, domaine: string, mots: readonly string[]) =>
+      `Le nom de ${nom} apparaît au début de l'adresse, mais le site réel est « ${domaine} »${motsAppat(mots)}.`,
+    ressemblanceMarque: (nom: string, domaine: string, mots: readonly string[]) =>
+      `L'adresse « ${domaine} » ressemble à celle de ${nom} sans être la sienne${motsAppat(mots)}. Vérifie bien chaque lettre.`,
+    marqueDansChemin: (nom: string, domaine: string) =>
+      `Le lien cite ${nom} dans son chemin, mais il mène vers « ${domaine} », qui n'est pas son site officiel.`,
+    raccourci: (domaine: string) =>
+      `Ce lien raccourci (« ${domaine} ») cache l'adresse de destination.`,
+    adresseIp: () => "Le lien utilise une adresse numérique au lieu d'un nom de site.",
+    caracteresInhabituels: (hote: string, nom: string | null) =>
+      nom
+        ? `L'adresse « ${hote} » utilise des caractères spéciaux qui ressemblent à des lettres normales, comme pour reprendre le nom de ${nom}.`
+        : `L'adresse « ${hote} » contient des caractères spéciaux, inhabituels pour un site français.`,
+    tldSuspect: (tld: string) =>
+      `La terminaison « .${tld} » est fréquente sur des sites éphémères. Ça ne prouve rien, mais c'est à noter.`,
+    motsAppat: (domaine: string, mots: readonly string[]) =>
+      `L'adresse « ${domaine} » contient des mots liés au paiement ou à la livraison (${listerMots(mots)}) alors que ce n'est pas un site connu.`,
+    hebergementOuvert: (hote: string) =>
+      `Le lien mène vers une page hébergée sur un service ouvert à tous (« ${hote} »), pas vers le site d'une marque.`,
+    adresseInhabituelle: (domaine: string) =>
+      `L'adresse « ${domaine} » est longue et pleine de tirets, ce qui est inhabituel pour un site officiel.`,
+    domaineRecent: (jours: number) =>
+      jours <= 1
+        ? "Le nom de domaine de ce site a été créé il y a moins de deux jours."
+        : `Le nom de domaine de ce site a été créé il y a seulement ${jours} jours.`,
+  },
 
   erreurs: {
     entree_invalide: "On n'a pas pu lire ta demande. Vérifie ce que tu as envoyé et réessaie.",
