@@ -260,6 +260,65 @@ export const fr = {
     erreur_interne: "Quelque chose s'est mal passé de notre côté. Réessaie dans un instant.",
   } satisfies Record<CodeErreur, string>,
 
+  /** Interface : écran de saisie, chargement, résultat. */
+  ui: {
+    tagline: "Les signaux d'alerte d'une annonce, en quelques secondes.",
+    plateformes: "Vinted, Leboncoin, Facebook Marketplace…",
+    sansJavascript: `${APP_NAME} a besoin de JavaScript pour fonctionner.`,
+    cta: "Vérifier une annonce",
+    ctaAide: "Ajoute une capture, un texte ou un lien pour commencer.",
+    ctaTraitement: "Préparation des captures…",
+    confidentialite: `${APP_NAME} ne conserve ni tes captures ni tes messages.`,
+    captures: {
+      titre: "Captures d'écran",
+      ajouter: "Ajouter des captures",
+      ajouterEncore: "Ajouter une capture",
+      aide: `Jusqu'à ${MAX_IMAGES} : l'annonce, le profil du vendeur, la conversation.`,
+      deposer: "Dépose tes captures ici",
+      retirer: (numero: number) => `Retirer la capture ${numero}`,
+      alt: (numero: number) => `Capture ${numero}`,
+      tropDImages: `Tu peux envoyer jusqu'à ${MAX_IMAGES} captures à la fois.`,
+      illisible:
+        "Une image n'a pas pu être lue. Essaie avec une capture d'écran au format JPEG, PNG ou WebP.",
+      tropLourde: "Une image est trop lourde, même réduite. Essaie avec une capture plus petite.",
+    },
+    texte: {
+      ouvrir: "Coller un texte ou un lien",
+      fermer: "Masquer le texte et le lien",
+      labelTexte: "Texte de l'annonce ou de la conversation",
+      placeholderTexte: "Colle ici la description de l'annonce ou les messages du vendeur",
+      labelLien: "Lien",
+      placeholderLien: "https://…",
+    },
+    chargement: {
+      titre: "Vérification en cours",
+      etapes: [
+        "On lit ce que tu as envoyé…",
+        "On cherche les signaux d'alerte…",
+        "On prépare ton résultat…",
+      ],
+      patience: "Ça prend quelques secondes.",
+      annuler: "Annuler",
+    },
+    resultat: {
+      score: "Score de risque",
+      sur100: "sur 100",
+      recommencer: "Vérifier une autre annonce",
+      scoreLu: (score: number, niveau: string) =>
+        `Score de risque : ${score} sur 100, ${niveau.toLowerCase()}.`,
+    },
+    erreur: {
+      titre: "La vérification n'a pas abouti",
+      reseau: "La connexion a échoué. Vérifie ton réseau et réessaie.",
+      delai: "La vérification prend trop de temps. Réessaie dans un instant.",
+      inattendue: "On n'a pas compris la réponse du service. Réessaie dans un instant.",
+      collerTexte: "Coller le texte à la place",
+      limite: (delai: string) =>
+        `Tu as fait beaucoup de vérifications en peu de temps. Tu pourras en refaire dans environ ${delai}.`,
+    },
+    feedbackEchec: "Ton avis n'a pas pu être envoyé. Réessaie dans un instant.",
+  },
+
   /** Précisions pour les erreurs de validation : remplacent le message générique du code. */
   erreursPrecises: {
     tropDImages: `Tu peux envoyer jusqu'à ${MAX_IMAGES} captures à la fois.`,

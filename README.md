@@ -8,7 +8,7 @@ repérés et des conseils concrets.
 > L'outil aide à la décision, il ne garantit rien. Il parle de « risque » et de « signaux d'alerte »,
 > jamais d'accusation.
 
-**État : étapes 0 à 5 terminées (squelette, contrats, liens, règles et scoring, client IA et évaluation, API et garde-fous). L'API fonctionne ; l'interface arrive à l'étape 6.**
+**État : étapes 0 à 6 terminées (squelette, contrats, liens, règles et scoring, client IA et évaluation, API et garde-fous, interface mobile). Il reste le partage, la PWA, la page Confidentialité et le lien d'annonce.**
 
 ## Stack
 
@@ -40,7 +40,7 @@ Node 22 recommandé (`.nvmrc`). Les variables d'environnement sont documentées 
 ```
 src/
   app/          pages et routes API (Next.js)
-  components/   UI
+  components/   UI (React) : Verificateur orchestre les trois écrans (saisie, chargement, résultat)
   lib/          cœur métier en TypeScript pur : aucun import de Next ni de React (règle ESLint)
     rules/      moteur de règles déterministe et pondéré (catalogue par famille, prix par marque)
     ai/         client Claude : prompt, schéma de sortie, nettoyage de la réponse, erreurs
@@ -50,6 +50,7 @@ src/
                 typosquatting, raccourcisseurs, TLD à risque (aucune requête réseau)
     security/   config des garde-fous, stockage (Upstash / mémoire), IP hashée, rate limit,
                 plafond de dépense, validation des images, lecture bornée du corps
+    client/     logique du navigateur sans React : compression des captures, appels à l'API, état des écrans
     api/        les handlers `traiterAnalyse`, `traiterFeedback`, `traiterStats` : Request → Response,
                 sans Next ; les routes de `src/app/api/v1/` ne font que les appeler
 ```
@@ -65,7 +66,7 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [x] 3. Moteur de règles et scoring
 - [x] 4. Client IA (extraction + évaluation, JSON structuré) et script d'évaluation
 - [x] 5. Route `/api/v1/analyze`, rate limit, plafond de dépense, compteur d'analyses, route de feedback
-- [ ] 6. UI mobile : upload, loader, écran résultat, feedback 👍👎 anonyme
+- [x] 6. UI mobile : upload, loader, écran résultat, feedback 👍👎 anonyme
 - [ ] 7. Carte de partage 9:16
 - [ ] 8. PWA et Web Share Target (Android)
 - [ ] 9. Page Confidentialité, landing avec compteur « X annonces vérifiées »
