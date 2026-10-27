@@ -249,7 +249,8 @@ export const fr = {
     trop_de_requetes:
       "Tu as fait beaucoup de vérifications en peu de temps. Réessaie dans quelques minutes.",
     plafond_atteint: `Forte affluence : ${APP_NAME} ne peut pas lire de captures pour le moment. Colle plutôt le texte de la conversation, ou reviens plus tard.`,
-    ia_indisponible: "L'analyse n'est pas disponible pour le moment. Réessaie dans un instant.",
+    ia_indisponible:
+      "On ne peut pas lire les captures pour le moment. Colle plutôt le texte de la conversation (ça marche sans), ou réessaie plus tard.",
     analyse_impossible:
       "On n'a pas réussi à lire cette capture. Essaie avec une capture plus nette, ou colle le texte de la conversation.",
     lien_non_recuperable:

@@ -68,7 +68,7 @@ describe("traiterAnalyse : cas nominal", () => {
     expect(await stockage.lire(CLE_COMPTEUR)).toBeNull();
   });
 
-  it("chaque analyse reçoit un identifiant différent, enregistré avec la seule tranche de score", async () => {
+  it("chaque analyse reçoit un identifiant différent, enregistré avec le seul mode et la seule tranche de score", async () => {
     const { deps, stockage } = creerContexteTest();
     const a = await corps(
       await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_BANALE }), deps),
@@ -78,7 +78,7 @@ describe("traiterAnalyse : cas nominal", () => {
     );
     expect(a.analyse_id).not.toBe(b.analyse_id);
     const enregistre = await stockage.prendre(`analyse:${a.analyse_id}`);
-    expect(enregistre).toBe(String(Math.floor(a.resultat.score / 10) * 10));
+    expect(enregistre).toBe(`complet:${Math.floor(a.resultat.score / 10) * 10}`);
   });
 
   it("un lien seul, suspect, est analysé sans aucun appel à l'IA ni réservation", async () => {
@@ -423,6 +423,16 @@ describe("traiterAnalyse : sans clé d'API, en production, ou stockage en panne"
     expect(json.resultat.meta.mode).toBe("regles_seules");
     expect(json.partielle?.raison).toBe("ia_indisponible");
     expect(ia.appels).toHaveLength(0);
+  });
+
+  it("des captures seules sans IA : un message honnête qui propose de coller le texte", async () => {
+    const { deps } = creerContexteTest({ env: { NODE_ENV: "production" } });
+    const r = await traiterAnalyse(requeteAnalyse({ images: [imagePng()] }), deps);
+    expect(r.status).toBe(503);
+    const e = ApiErrorSchema.parse(await r.json()).erreur;
+    expect(e.code).toBe("ia_indisponible");
+    expect(e.message).toMatch(/colle plutôt le texte/i);
+    expect(e.message).not.toMatch(/dans un instant/i);
   });
 
   it("des captures seules avec un stockage en panne : ia_indisponible (pas de plafond annoncé à tort)", async () => {

@@ -22,7 +22,7 @@ import {
   verifierDebit,
   type Reservation,
 } from "../security";
-import { DUREE_ID_ANALYSE_S, cleAnalyse } from "./cles";
+import { DUREE_ID_ANALYSE_S, cleAnalyse, encoderAnalyse } from "./cles";
 import { compterAnalyse } from "./compteur";
 import type { DependancesApi } from "./deps";
 import { reponseErreur, reponseJson, requeteInterSites, secondesJusquaMinuitUtc } from "./reponses";
@@ -193,10 +193,10 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
 
   const analyseId = crypto.randomUUID();
   try {
-    // Ce que le serveur retiendra pour le vote : la tranche de score, rien d'autre.
+    // Ce que le serveur retiendra pour le vote : le mode et la tranche de score, rien d'autre.
     await deps.stockage.poser(
       cleAnalyse(analyseId),
-      String(trancheDeScore(resultat.resultat.score)),
+      encoderAnalyse(resultat.resultat.meta.mode, trancheDeScore(resultat.resultat.score)),
       DUREE_ID_ANALYSE_S,
     );
   } catch {

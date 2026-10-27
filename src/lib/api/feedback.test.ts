@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiErrorSchema } from "../contracts/errors";
 import { StockageMemoire } from "../security";
 import { traiterAnalyse } from "./analyze";
-import { DUREE_ID_ANALYSE_S, cleAnalyse, cleFeedback } from "./cles";
+import { DUREE_ID_ANALYSE_S, cleAnalyse, cleFeedback, encoderAnalyse } from "./cles";
 import { lireAgregatsFeedback, traiterFeedback } from "./feedback";
 import {
   CONVERSATION_BANALE,
@@ -15,9 +15,13 @@ afterEach(() => vi.restoreAllMocks());
 
 const ID = "6f1f3a52-3c1b-4a56-9d5e-0b2c7d9f1a10";
 
-/** Enregistre une analyse « comme le fait l'analyse » : seule la tranche de score est retenue. */
-const enregistrer = (stockage: StockageMemoire, tranche: number, id = ID) =>
-  stockage.poser(cleAnalyse(id), String(tranche), DUREE_ID_ANALYSE_S);
+/** Enregistre une analyse « comme le fait l'analyse » : seuls le mode et la tranche sont retenus. */
+const enregistrer = (
+  stockage: StockageMemoire,
+  tranche: number,
+  mode: "complet" | "regles_seules" = "complet",
+  id = ID,
+) => stockage.poser(cleAnalyse(id), encoderAnalyse(mode, tranche), DUREE_ID_ANALYSE_S);
 
 describe("traiterFeedback", () => {
   it("enregistre un vote dans l'agrégat (niveau, tranche, vote)", async () => {
@@ -26,8 +30,8 @@ describe("traiterFeedback", () => {
     const r = await traiterFeedback(requeteFeedback({ analyse_id: ID, vote: "up" }), deps);
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ ok: true });
-    expect(await stockage.lire(cleFeedback("élevé", 70, "up"))).toBe(1);
-    expect(await stockage.lire(cleFeedback("élevé", 70, "down"))).toBeNull();
+    expect(await stockage.lire(cleFeedback("complet", "élevé", 70, "up"))).toBe(1);
+    expect(await stockage.lire(cleFeedback("complet", "élevé", 70, "down"))).toBeNull();
   });
 
   it("un vote par analyse : le second est refusé", async () => {
@@ -39,8 +43,8 @@ describe("traiterFeedback", () => {
     const second = await vote("down");
     expect(second.status).toBe(409);
     expect(ApiErrorSchema.parse(await second.json()).erreur.code).toBe("vote_impossible");
-    expect(await stockage.lire(cleFeedback("moyen", 40, "up"))).toBe(1);
-    expect(await stockage.lire(cleFeedback("moyen", 40, "down"))).toBeNull();
+    expect(await stockage.lire(cleFeedback("complet", "moyen", 40, "up"))).toBe(1);
+    expect(await stockage.lire(cleFeedback("complet", "moyen", 40, "down"))).toBeNull();
   });
 
   it("des votes simultanés sur la même analyse : un seul est compté", async () => {
@@ -59,8 +63,8 @@ describe("traiterFeedback", () => {
     );
     expect(reponses.filter((r) => r.status === 200)).toHaveLength(1);
     const total =
-      ((await stockage.lire(cleFeedback("faible", 10, "up"))) ?? 0) +
-      ((await stockage.lire(cleFeedback("faible", 10, "down"))) ?? 0);
+      ((await stockage.lire(cleFeedback("complet", "faible", 10, "up"))) ?? 0) +
+      ((await stockage.lire(cleFeedback("complet", "faible", 10, "down"))) ?? 0);
     expect(total).toBe(1);
   });
 
@@ -93,8 +97,8 @@ describe("traiterFeedback", () => {
       deps,
     );
     expect(r.status).toBe(200);
-    expect(await stockage.lire(cleFeedback("faible", 20, "up"))).toBe(1);
-    expect(await stockage.lire(cleFeedback("élevé", 90, "up"))).toBeNull();
+    expect(await stockage.lire(cleFeedback("complet", "faible", 20, "up"))).toBe(1);
+    expect(await stockage.lire(cleFeedback("complet", "élevé", 90, "up"))).toBeNull();
   });
 
   it.each([
@@ -132,7 +136,7 @@ describe("traiterFeedback", () => {
       deps,
     );
     expect(r.status).toBe(403);
-    expect(await stockage.prendre(cleAnalyse(ID))).toBe("40");
+    expect(await stockage.prendre(cleAnalyse(ID))).toBe("complet:40");
   });
 
   it("limite le débit (marteler des identifiants au hasard)", async () => {
@@ -172,7 +176,10 @@ describe("feedback : de bout en bout avec une vraie analyse", () => {
     const { deps, stockage } = creerContexteTest();
     const analyse = (await (
       await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_BANALE }), deps)
-    ).json()) as { analyse_id: string; resultat: { score: number; niveau: string } };
+    ).json()) as {
+      analyse_id: string;
+      resultat: { score: number; niveau: string; meta: { mode: string } };
+    };
 
     const premier = await traiterFeedback(
       requeteFeedback({ analyse_id: analyse.analyse_id, vote: "down" }),
@@ -185,7 +192,12 @@ describe("feedback : de bout en bout avec une vraie analyse", () => {
     expect([premier.status, second.status]).toEqual([200, 409]);
 
     const tranche = Math.floor(analyse.resultat.score / 10) * 10;
-    const cle = cleFeedback(analyse.resultat.niveau as "faible", tranche, "down");
+    const cle = cleFeedback(
+      analyse.resultat.meta.mode as "complet",
+      analyse.resultat.niveau as "faible",
+      tranche,
+      "down",
+    );
     expect(await stockage.lire(cle)).toBe(1);
   });
 
@@ -197,20 +209,68 @@ describe("feedback : de bout en bout avec une vraie analyse", () => {
     await traiterFeedback(requeteFeedback({ analyse_id: analyse.analyse_id, vote: "up" }), deps);
     const cles = stockage.cles().filter((c) => c.startsWith("feedback:"));
     expect(cles).toHaveLength(1);
-    expect(cles[0]).toMatch(/^feedback:(faible|moyen|élevé):\d{1,2}:(up|down)$/);
+    expect(cles[0]).toMatch(
+      /^feedback:(complet|regles_seules):(faible|moyen|élevé):\d{1,2}:(up|down)$/,
+    );
   });
 });
 
+describe("feedback : le mode de l'analyse sépare les agrégats", () => {
+  it("un vote sur une analyse « règles seules » ne se mélange pas aux analyses complètes", async () => {
+    const { deps, stockage } = creerContexteTest();
+    await enregistrer(stockage, 70, "regles_seules");
+    await enregistrer(stockage, 70, "complet", "11111111-2222-4333-8444-555555555555");
+    await traiterFeedback(requeteFeedback({ analyse_id: ID, vote: "down" }), deps);
+    await traiterFeedback(
+      requeteFeedback({ analyse_id: "11111111-2222-4333-8444-555555555555", vote: "down" }),
+      deps,
+    );
+    expect(await stockage.lire(cleFeedback("regles_seules", "élevé", 70, "down"))).toBe(1);
+    expect(await stockage.lire(cleFeedback("complet", "élevé", 70, "down"))).toBe(1);
+  });
+
+  it("une analyse réellement faite sans IA est rangée en « regles_seules »", async () => {
+    const { deps, stockage } = creerContexteTest({ ia: null });
+    const analyse = (await (
+      await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_BANALE }), deps)
+    ).json()) as { analyse_id: string };
+    await traiterFeedback(requeteFeedback({ analyse_id: analyse.analyse_id, vote: "up" }), deps);
+    const cles = stockage.cles().filter((c) => c.startsWith("feedback:"));
+    expect(cles).toHaveLength(1);
+    expect(cles[0]).toMatch(/^feedback:regles_seules:/);
+  });
+
+  it.each(["complet:45", "complet:100", "inconnu:40", "40", "complet:4", "complet:-10", ""])(
+    "un enregistrement illisible (%j) n'est jamais compté",
+    async (brut) => {
+      const { deps, stockage } = creerContexteTest();
+      await stockage.poser(cleAnalyse(ID), brut, 60);
+      const r = await traiterFeedback(requeteFeedback({ analyse_id: ID, vote: "up" }), deps);
+      expect(r.status).toBe(409);
+      expect(stockage.cles().filter((c) => c.startsWith("feedback:"))).toEqual([]);
+    },
+  );
+});
+
 describe("lireAgregatsFeedback", () => {
-  it("relit les agrégats par tranche, avec le niveau correspondant", async () => {
+  it("relit les agrégats par mode et par tranche, avec le niveau correspondant", async () => {
     const stockage = new StockageMemoire();
-    await stockage.incrementer(cleFeedback("faible", 0, "up"), 3);
-    await stockage.incrementer(cleFeedback("moyen", 30, "down"), 2);
-    await stockage.incrementer(cleFeedback("élevé", 90, "up"), 5);
+    await stockage.incrementer(cleFeedback("complet", "faible", 0, "up"), 3);
+    await stockage.incrementer(cleFeedback("complet", "moyen", 30, "down"), 2);
+    await stockage.incrementer(cleFeedback("regles_seules", "élevé", 90, "up"), 5);
     const agregats = await lireAgregatsFeedback(stockage);
-    expect(agregats).toHaveLength(10);
-    expect(agregats[0]).toEqual({ niveau: "faible", tranche: 0, up: 3, down: 0 });
-    expect(agregats[3]).toEqual({ niveau: "moyen", tranche: 30, up: 0, down: 2 });
-    expect(agregats[9]).toEqual({ niveau: "élevé", tranche: 90, up: 5, down: 0 });
+    expect(agregats).toHaveLength(20);
+    const trouver = (mode: string, tranche: number) =>
+      agregats.find((a) => a.mode === mode && a.tranche === tranche);
+    expect(trouver("complet", 0)).toEqual({
+      mode: "complet",
+      niveau: "faible",
+      tranche: 0,
+      up: 3,
+      down: 0,
+    });
+    expect(trouver("complet", 30)).toMatchObject({ niveau: "moyen", up: 0, down: 2 });
+    expect(trouver("regles_seules", 90)).toMatchObject({ niveau: "élevé", up: 5, down: 0 });
+    expect(trouver("regles_seules", 0)).toMatchObject({ up: 0, down: 0 });
   });
 });

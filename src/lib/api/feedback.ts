@@ -1,6 +1,13 @@
-import { FeedbackInputSchema, VOTES, niveauPourScore, type Niveau, type Vote } from "../contracts";
+import {
+  FeedbackInputSchema,
+  VOTES,
+  niveauPourScore,
+  type ModeAnalyse,
+  type Niveau,
+  type Vote,
+} from "../contracts";
 import { extraireIp, hasherIp, lireJson, verifierDebit, type Stockage } from "../security";
-import { cleAnalyse, cleFeedback } from "./cles";
+import { cleAnalyse, cleFeedback, decoderAnalyse } from "./cles";
 import type { DependancesApi } from "./deps";
 import { reponseErreur, reponseJson, requeteInterSites } from "./reponses";
 
@@ -44,14 +51,16 @@ export async function traiterFeedback(request: Request, deps: DependancesApi): P
   if (!entree.success) return reponseErreur("entree_invalide");
 
   try {
-    const enregistre = await deps.stockage.prendre(cleAnalyse(entree.data.analyse_id));
-    const tranche = Number(enregistre);
-    if (enregistre === null || !Number.isInteger(tranche) || tranche < 0 || tranche > 90) {
-      return reponseErreur("vote_impossible");
-    }
+    const analyse = decoderAnalyse(await deps.stockage.prendre(cleAnalyse(entree.data.analyse_id)));
+    if (!analyse) return reponseErreur("vote_impossible");
     // Les seuils de niveau sont des multiples de 10 : la tranche suffit à retrouver le niveau.
     await deps.stockage.incrementer(
-      cleFeedback(niveauPourScore(tranche), tranche, entree.data.vote),
+      cleFeedback(
+        analyse.mode,
+        niveauPourScore(analyse.tranche),
+        analyse.tranche,
+        entree.data.vote,
+      ),
       1,
     );
   } catch {
@@ -61,6 +70,7 @@ export async function traiterFeedback(request: Request, deps: DependancesApi): P
 }
 
 export interface AgregatFeedback {
+  mode: ModeAnalyse;
   niveau: Niveau;
   tranche: number;
   up: number;
@@ -69,19 +79,24 @@ export interface AgregatFeedback {
 
 /**
  * Relit tous les agrégats du feedback, pour calibrer les seuils (un script, un tableau de
- * bord). Même chose depuis la console Upstash : clés `feedback:<niveau>:<tranche>:<vote>`.
+ * bord). Même chose depuis la console Upstash : clés
+ * `feedback:<mode>:<niveau>:<tranche>:<vote>`.
  */
 export async function lireAgregatsFeedback(stockage: Stockage): Promise<AgregatFeedback[]> {
   const tranches = Array.from({ length: 10 }, (_, i) => i * 10);
+  const modes: ModeAnalyse[] = ["complet", "regles_seules"];
   return Promise.all(
-    tranches.map(async (tranche) => {
-      const niveau = niveauPourScore(tranche);
-      const [up, down] = await Promise.all(
-        VOTES.map(
-          async (vote: Vote) => (await stockage.lire(cleFeedback(niveau, tranche, vote))) ?? 0,
-        ),
-      );
-      return { niveau, tranche, up: up ?? 0, down: down ?? 0 };
-    }),
+    modes.flatMap((mode) =>
+      tranches.map(async (tranche) => {
+        const niveau = niveauPourScore(tranche);
+        const [up, down] = await Promise.all(
+          VOTES.map(
+            async (vote: Vote) =>
+              (await stockage.lire(cleFeedback(mode, niveau, tranche, vote))) ?? 0,
+          ),
+        );
+        return { mode, niveau, tranche, up: up ?? 0, down: down ?? 0 };
+      }),
+    ),
   );
 }

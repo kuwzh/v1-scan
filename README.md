@@ -98,10 +98,11 @@ Valeurs de départ, toutes réglables dans l'environnement (voir `.env.example`)
   accompagnée du message « Forte affluence, analyse partielle » ; des captures seules (illisibles sans
   IA) reçoivent l'erreur `plafond_atteint`, qui invite à coller le texte de la conversation.
 - **Feedback** : chaque analyse renvoie un `analyse_id` aléatoire. Le serveur retient seulement la
-  tranche de score (10 points) sous cet identifiant, pour une heure. Le premier vote le consomme de
+  mode (complet ou règles seules) et la tranche de score (10 points) sous cet identifiant, pour une heure. Le premier vote le consomme de
   façon atomique ; les suivants sont refusés. Le client ne fournit jamais le score, donc il ne peut
-  pas fausser les agrégats. On n'enregistre qu'un compteur par (niveau, tranche, vote), clés
-  `feedback:<niveau>:<tranche>:<vote>`, relisibles avec `lireAgregatsFeedback`.
+  pas fausser les agrégats. On n'enregistre qu'un compteur par (mode, niveau, tranche, vote), clés
+  `feedback:<mode>:<niveau>:<tranche>:<vote>`, relisibles avec `lireAgregatsFeedback`. Le mode est
+  séparé car les scores « règles seules » n'ont pas la même distribution que les scores complets.
 - **Compteur public** : un entier incrémenté à chaque analyse réussie, relu au plus toutes les
   `COUNTER_CACHE_SECONDS` secondes (5 minutes) par instance, et mis en cache par le CDN.
 - **Images** : trois au plus, 1,3 Mo chacune, 3,6 Mo au total. Le format est vérifié d'après les
@@ -116,6 +117,44 @@ valeur que partagés entre toutes les instances : sans `UPSTASH_REDIS_REST_URL`/
 en « règles seules » et un avertissement de configuration (sans aucun contenu) est écrit une fois dans
 le journal. En développement, un repli en mémoire est utilisé. Si Upstash tombe en cours de route,
 même comportement : les analyses restent servies sans IA.
+
+### Checklist « premier test réel »
+
+Rien de ce qui suit n'a pu être vérifié sans identifiants : à faire une fois, dans l'ordre, avant de
+mettre l'app devant du public. Mettre les clés dans `.env.local` (jamais commité).
+
+**Upstash**
+
+- [ ] Créer une base Upstash Redis, proche de la région des fonctions Vercel. Une base **séparée** pour
+      les previews. Renseigner `UPSTASH_REDIS_REST_URL` et `UPSTASH_REDIS_REST_TOKEN`.
+- [ ] Générer `IP_HASH_SECRET` (`openssl rand -hex 32`), un différent par environnement.
+- [ ] `pnpm dev`, puis envoyer 11 analyses de texte depuis la même IP : la 11ᵉ doit répondre `429` avec
+      un `Retry-After`.
+- [ ] Dans la console Upstash, vérifier les clés : `limite:*` (TTL > 0 et ≤ 2 jours, jamais `-1`),
+      `depense:<date>`, `compteur:analyses`, `analyse:<uuid>` (TTL ≈ 3 600 s). Aucune IP en clair,
+      aucun texte.
+- [ ] Voter deux fois avec le même `analyse_id` : `200` puis `409`. La clé `analyse:<uuid>` a disparu et
+      `feedback:<mode>:<niveau>:<tranche>:<vote>` vaut 1.
+- [ ] Couper Upstash (mauvais jeton) : une analyse de texte répond toujours, en « règles seules ».
+- [ ] En production sans les variables Upstash : l'avertissement `[gardo] IA désactivée` apparaît dans
+      les journaux et une capture seule reçoit le message qui propose de coller le texte.
+
+**Anthropic**
+
+- [ ] Renseigner `ANTHROPIC_API_KEY` ; garder `claude-haiku-5-5` par défaut.
+- [ ] `pnpm eval` (plan, sans appel) puis `pnpm eval --run` : aucune erreur `configuration` ni
+      `reponse_invalide` (c'est la preuve que le schéma de sortie est accepté), faux positifs sur les
+      conversations saines, taux d'invention et calibration de la confiance.
+- [ ] Comparer le coût mesuré par l'éval aux estimations : `TARIFS_MODELES` (à revérifier sur la page de
+      tarifs d'Anthropic) et `estimerCoutMaximal` doivent rester au-dessus du pire coût observé. Le
+      coût moyen est supposé d'environ 0,0007 $ par analyse sur Haiku ; ajuster `DAILY_SPEND_CAP_USD`
+      en conséquence.
+- [ ] Envoyer une vraie capture par l'app (`pnpm dev`) : le résultat est « complet » et la clé
+      `depense:<date>` a augmenté d'un montant cohérent (valeur en millionièmes de dollar).
+- [ ] Tester le plafond avec `DAILY_SPEND_CAP_USD=0.01` : après quelques analyses, le message « Forte
+      affluence, analyse partielle » apparaît pour un texte et `plafond_atteint` pour une capture seule.
+- [ ] Si l'éval montre trop d'erreurs d'extraction, passer à `ANTHROPIC_MODEL=claude-sonnet-5-5`
+      (sans changement de code) et relancer l'éval.
 
 ## Comment le score est calculé
 
