@@ -96,7 +96,8 @@ Valeurs de départ, toutes réglables dans l'environnement (voir `.env.example`)
   lire le corps de la requête. Une demande refusée n'est pas décomptée. L'IP n'est jamais stockée :
   seule une empreinte HMAC (secret `IP_HASH_SECRET`) sert de clé, avec une durée de vie de 2 jours au
   plus. En IPv6, c'est le préfixe /64 qui est limité.
-- **Plafond de dépense** : 5 $/jour (`DAILY_SPEND_CAP_USD`, jour UTC), tous visiteurs confondus. Avant
+- **Plafond de dépense** : 1 $/jour (`DAILY_SPEND_CAP_USD`, jour UTC), tous visiteurs confondus : de
+  l'ordre de 1 000 analyses à 0,0007 $, ou une quarantaine de comparaisons de prix à 0,02 $. Avant
   chaque appel à l'IA, le coût maximal possible est _réservé_ de façon atomique, puis remplacé par le
   coût réel : même avec des appels simultanés, le plafond ne peut pas être dépassé de plus qu'une
   erreur d'estimation. Au-delà, l'IA est coupée : un texte reçoit une analyse « règles seules »
@@ -134,12 +135,15 @@ même comportement : les analyses restent servies sans IA.
 À faire avant la checklist ci-dessous, qui se déroule ensuite sur l'URL de la preview. Le plan
 gratuit de Vercel (Hobby) suffit.
 
-1. **Branche de production.** Le dépôt n'a pour l'instant qu'une branche, donc Vercel la prendrait
-   pour la production. Pour avoir une vraie _preview_, créer sur GitHub une branche `main` (depuis la
-   branche de travail) et la définir comme branche par défaut (Settings → Branches). La branche de
-   travail devient alors une preview ; `main` sera la production, avec ses propres variables.
+1. **Branche de production.** La branche `main` existe (créée depuis la branche de travail). Il reste
+   à la définir comme branche par défaut sur GitHub (Settings → Branches) : la branche de travail
+   devient alors une _preview_, et `main` la production, avec ses propres variables.
+   **Région des fonctions.** `vercel.json` fixe `"regions": ["fra1"]` (Francfort), près d'Upstash. Le
+   plan Hobby n'autorise qu'une région, et Next.js n'a aucun réglage de région qui entre en conflit
+   (aucun `preferredRegion`, aucune clé `functions` dans `vercel.json`). `vercel.json` l'emporte sur
+   le réglage de région du tableau de bord Vercel.
 2. **Une base Upstash par environnement.** Créer `gardo-preview` (et plus tard `gardo-prod`) dans la
-   console Upstash, région européenne (Francfort ou Irlande), plan gratuit. Au choix :
+   console Upstash, région européenne (Francfort de préférence, comme les fonctions), plan gratuit. Au choix :
    - depuis Vercel (Storage → Upstash Redis), en ne connectant la base `gardo-preview` qu'à
      l'environnement **Preview** du projet ;
    - ou à la main : console Upstash → la base → REST API → copier l'URL et le jeton, puis les ajouter

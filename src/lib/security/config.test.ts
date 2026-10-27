@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { iaAutorisee, lireConfigSecurite } from "./config";
 
 describe("lireConfigSecurite : valeurs de départ", () => {
-  it("10 analyses/heure, 30/jour, 5 $/jour, compteur en cache 5 minutes", () => {
+  it("10 analyses/heure, 30/jour, 1 $/jour, compteur en cache 5 minutes", () => {
     const c = lireConfigSecurite({});
     expect(c).toMatchObject({
       limiteParHeure: 10,
       limiteParJour: 30,
-      plafondJournalierUsd: 5,
+      plafondJournalierUsd: 1,
       cacheCompteurS: 300,
       ipSecret: null,
       upstash: null,
@@ -49,11 +49,11 @@ describe("lireConfigSecurite : valeurs de départ", () => {
   });
 
   it("une variable vide ne vaut pas 0 : un plafond vide garde la valeur par défaut", () => {
-    expect(lireConfigSecurite({ DAILY_SPEND_CAP_USD: "" }).plafondJournalierUsd).toBe(5);
+    expect(lireConfigSecurite({ DAILY_SPEND_CAP_USD: "" }).plafondJournalierUsd).toBe(1);
   });
 
-  it.each(["abc", "-1", "Infinity", "1e9"])("un plafond invalide (%j) retombe sur 5", (valeur) => {
-    expect(lireConfigSecurite({ DAILY_SPEND_CAP_USD: valeur }).plafondJournalierUsd).toBe(5);
+  it.each(["abc", "-1", "Infinity", "1e9"])("un plafond invalide (%j) retombe sur 1", (valeur) => {
+    expect(lireConfigSecurite({ DAILY_SPEND_CAP_USD: valeur }).plafondJournalierUsd).toBe(1);
   });
 
   it("accepte les noms KV_REST_API_* que l'intégration Vercel peut injecter", () => {

@@ -34,7 +34,7 @@ describe("GET /api/v1/health", () => {
       manque: [],
       raison_inactive: null,
       environnement: "production",
-      plafond_usd: 5,
+      plafond_usd: 1,
       depense_du_jour_usd: 0,
     });
   });

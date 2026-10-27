@@ -22,7 +22,7 @@ describe("estimerCoutMaximal", () => {
     expect(estimerCoutMaximal("claude-haiku-5-5", pire)).toBeGreaterThan(reel ?? 0);
   });
 
-  it("reste de l'ordre du demi-centime sur Haiku : 5 $ couvrent plus de 1 000 analyses", () => {
+  it("reste de l'ordre du demi-centime sur Haiku : 1 $ couvre plus de 100 analyses au pire cas", () => {
     const c = estimerCoutMaximal("claude-haiku-5-5", pire);
     expect(c).toBeGreaterThan(0.001);
     expect(c).toBeLessThan(0.01);

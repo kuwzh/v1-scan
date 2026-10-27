@@ -263,7 +263,7 @@ describe("traiterAnalyse : rate limit (10/heure, 30/jour par IP)", () => {
   });
 });
 
-describe("traiterAnalyse : plafond de dépense (5 $/jour)", () => {
+describe("traiterAnalyse : plafond de dépense (1 $/jour)", () => {
   it("inscrit le coût réel de chaque appel IA", async () => {
     const { deps, stockage, horloge } = creerContexteTest();
     await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_BANALE }), deps);

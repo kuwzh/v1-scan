@@ -4,7 +4,7 @@
  */
 export const LIMITE_PAR_HEURE_DEFAUT = 10;
 export const LIMITE_PAR_JOUR_DEFAUT = 30;
-export const PLAFOND_JOURNALIER_USD_DEFAUT = 5;
+export const PLAFOND_JOURNALIER_USD_DEFAUT = 1;
 export const CACHE_COMPTEUR_S_DEFAUT = 300;
 
 export interface ConfigSecurite {
