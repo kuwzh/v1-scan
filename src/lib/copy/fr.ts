@@ -102,12 +102,12 @@ export const fr = {
     ia_echec_indisponible: {
       public: "Le service d'IA est momentanément indisponible.",
       detail: (technique?: string) =>
-        `Anthropic est injoignable ou surchargé${technique ? ` (${technique})` : ""}.`,
+        `Anthropic est injoignable ou surchargé${technique ? ` : ${technique}` : ""}.`,
     },
     ia_echec_configuration: {
       public: "Le service d'IA a refusé la requête : le service n'est pas correctement configuré.",
       detail: (technique?: string) =>
-        `Anthropic a refusé la requête${technique ? ` (${technique})` : ""} : vérifie ANTHROPIC_API_KEY, ANTHROPIC_MODEL et le format de sortie demandé.`,
+        `Anthropic a refusé la requête${technique ? ` : ${technique}` : ""}. Vérifie ANTHROPIC_API_KEY, ANTHROPIC_MODEL et le format de sortie demandé (output_config.format).`,
     },
     ia_echec_delai: {
       public: "Le service d'IA n'a pas répondu à temps.",
@@ -116,7 +116,7 @@ export const fr = {
     ia_echec_refus: {
       public: "Le service d'IA n'a pas pu traiter ce contenu.",
       detail: (technique?: string) =>
-        `Le modèle a refusé de répondre${technique ? ` (${technique})` : ""}.`,
+        `Le modèle a refusé de répondre${technique ? ` : ${technique}` : ""}.`,
     },
     ia_echec_tronquee: {
       public: "Le service d'IA a renvoyé une réponse inexploitable.",
@@ -126,7 +126,7 @@ export const fr = {
     ia_echec_reponse_invalide: {
       public: "Le service d'IA a renvoyé une réponse inexploitable.",
       detail: (technique?: string) =>
-        `La réponse du modèle n'a pas la forme attendue${technique ? ` (${technique})` : ""}.`,
+        `La réponse du modèle n'a pas la forme attendue${technique ? ` : ${technique}` : ""}.`,
     },
   } satisfies Record<
     CodeDiagnostic,

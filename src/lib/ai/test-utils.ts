@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ReponseModele } from "./wire";
+import type { ReponseApi, ReponseModele } from "./wire";
 
 /** Réponse valide du modèle pour une conversation banale ; les tests la modifient. */
 export function reponseModele(partiel: Partial<ReponseModele> = {}): ReponseModele {
@@ -54,6 +54,57 @@ export function reponseModele(partiel: Partial<ReponseModele> = {}): ReponseMode
     rassurants: [{ label: "Le compte existe depuis plusieurs années." }],
     conseils: ["Reste dans la messagerie de la plateforme."],
     ...partiel,
+  };
+}
+
+/**
+ * La réponse de `reponseModele()` telle que l'API la renvoie : pas de `null`, la confiance
+ * « aucune » et une valeur neutre à la place (voir `ReponseApiSchema`).
+ */
+export function versReponseApi(r: ReponseModele): ReponseApi {
+  const d = r.donnees_extraites;
+  const NOMBRES = new Set([
+    "prix_eur",
+    "nombre_photos",
+    "anciennete_jours",
+    "nombre_avis",
+    "note_sur_5",
+    "nombre_annonces",
+  ]);
+  const BOOLEENS = new Set(["profil_verifie"]);
+  const valeurs = (groupe: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.entries(groupe).map(([cle, v]) => [
+        cle,
+        v !== null ? v : NOMBRES.has(cle) ? 0 : BOOLEENS.has(cle) ? false : "",
+      ]),
+    );
+  const confiances = (groupe: Record<string, string | null>) =>
+    Object.fromEntries(Object.entries(groupe).map(([cle, c]) => [cle, c ?? "aucune"]));
+
+  return {
+    contenu_exploitable: r.contenu_exploitable,
+    donnees_extraites: {
+      plateforme: d.plateforme ?? "inconnue",
+      ecrans: d.ecrans,
+      annonce: valeurs(d.annonce) as ReponseApi["donnees_extraites"]["annonce"],
+      vendeur: valeurs(d.vendeur) as ReponseApi["donnees_extraites"]["vendeur"],
+      messages: d.messages,
+      liens: d.liens,
+      confiance: {
+        annonce: confiances(
+          d.confiance.annonce,
+        ) as ReponseApi["donnees_extraites"]["confiance"]["annonce"],
+        vendeur: confiances(
+          d.confiance.vendeur,
+        ) as ReponseApi["donnees_extraites"]["confiance"]["vendeur"],
+      },
+    },
+    score: r.score,
+    niveau: r.niveau,
+    signaux: r.signaux,
+    rassurants: r.rassurants,
+    conseils: r.conseils,
   };
 }
 

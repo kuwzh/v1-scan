@@ -21,7 +21,7 @@ export function evaluateurFactice(
   options: {
     reponse?: ReponseModele;
     usage?: UsageIa;
-    echec?: { raison: RaisonEchecIa; usage?: UsageIa };
+    echec?: { raison: RaisonEchecIa; usage?: UsageIa; detail?: string };
   } = {},
 ): EvaluateurFactice {
   const appels: EntreeIa[] = [];
@@ -31,7 +31,7 @@ export function evaluateurFactice(
       return {
         ok: false,
         raison: options.echec.raison,
-        detail: "HTTP 529",
+        detail: options.echec.detail ?? "HTTP 529",
         dureeMs: 500,
         ...(options.echec.usage ? { usage: options.echec.usage } : {}),
       };

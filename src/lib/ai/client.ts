@@ -4,7 +4,7 @@ import type { ConfigIa } from "./config";
 import { normaliserReponse } from "./normaliser";
 import { PROMPT_SYSTEME, construireMessageUtilisateur } from "./prompt";
 import type { EntreeIa, EvaluerIa, RaisonEchecIa, ResultatIa, UsageIa } from "./types";
-import { ReponseModeleSchema, SCHEMA_REPONSE } from "./wire";
+import { ReponseApiSchema, SCHEMA_REPONSE, depuisReponseApi } from "./wire";
 
 /** Ce dont l'évaluateur a besoin du SDK : un seul appel. Permet de le remplacer dans les tests. */
 export interface ClientIa {
@@ -34,9 +34,59 @@ function usageDe(message: Anthropic.Message): UsageIa {
   };
 }
 
+type ErreurApi = InstanceType<typeof Anthropic.APIError>;
+
+const LONGUEUR_MAX_MESSAGE_API = 500;
+
 /**
- * Classe l'erreur du SDK. Le détail ne contient que le statut HTTP ou la nature de la panne,
- * jamais le message d'erreur (qui pourrait citer du contenu) ni un nom de classe (minifié en production).
+ * Message d'erreur de l'API, rendu sûr pour un journal ou un écran de diagnostic : sans clé d'API,
+ * sans jeton, sans longue suite de données encodées (une image en base64), sur une seule ligne et
+ * tronqué. Les erreurs de validation de l'API décrivent la requête (schéma, paramètre refusé), pas
+ * le contenu de l'utilisateur.
+ */
+export function nettoyerMessageApi(message: string): string {
+  const propre = message
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, "[clé masquée]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [masqué]")
+    .replace(/[A-Za-z0-9+/_-]{60,}={0,2}/g, "[données masquées]")
+    .replace(/\s+/g, " ")
+    .trim();
+  return propre.length > LONGUEUR_MAX_MESSAGE_API
+    ? `${propre.slice(0, LONGUEUR_MAX_MESSAGE_API)}…`
+    : propre;
+}
+
+/** Type et message de l'erreur renvoyée par l'API (`{ type: "error", error: { type, message } }`). */
+function corpsErreurApi(erreur: ErreurApi): { type?: string; message?: string } {
+  const corps: unknown = erreur.error;
+  if (typeof corps === "string") return { message: corps };
+  if (typeof corps !== "object" || corps === null) return { type: erreur.type ?? undefined };
+  const racine = corps as Record<string, unknown>;
+  const interne =
+    typeof racine.error === "object" && racine.error !== null
+      ? (racine.error as Record<string, unknown>)
+      : racine;
+  const type = typeof interne.type === "string" ? interne.type : (erreur.type ?? undefined);
+  const message = typeof interne.message === "string" ? interne.message : undefined;
+  return { type, message };
+}
+
+/** « HTTP 400 (invalid_request_error) : <message de l'API> [req_…] » */
+function decrireErreurApi(erreur: ErreurApi): string {
+  const { type, message } = corpsErreurApi(erreur);
+  const statut = erreur.status ? `HTTP ${erreur.status}` : "erreur de l'API";
+  return [
+    statut,
+    type ? ` (${type})` : "",
+    message ? ` : ${nettoyerMessageApi(message)}` : "",
+    erreur.requestID ? ` [${erreur.requestID}]` : "",
+  ].join("");
+}
+
+/**
+ * Classe l'erreur du SDK. Le détail donne le statut HTTP, le type et le message de l'erreur de
+ * l'API (nettoyé : voir `nettoyerMessageApi`) et l'identifiant de requête, pour qu'on sache ce
+ * qui est refusé. Jamais un nom de classe (minifié en production) ni le contenu de l'utilisateur.
  */
 export function classerErreur(erreur: unknown): { raison: RaisonEchecIa; detail: string } {
   if (erreur instanceof Anthropic.APIConnectionTimeoutError) {
@@ -54,7 +104,7 @@ export function classerErreur(erreur: unknown): { raison: RaisonEchecIa; detail:
       erreur instanceof Anthropic.UnprocessableEntityError;
     return {
       raison: configuration ? "configuration" : "indisponible",
-      detail: erreur.status ? `HTTP ${erreur.status}` : "erreur de l'API",
+      detail: decrireErreurApi(erreur),
     };
   }
   return { raison: "indisponible", detail: "erreur inattendue" };
@@ -136,7 +186,7 @@ export function creerEvaluateurIa(
     } catch {
       return echec("reponse_invalide", "JSON illisible");
     }
-    const valide = ReponseModeleSchema.safeParse(json);
+    const valide = ReponseApiSchema.safeParse(json);
     if (!valide.success) {
       // Chemins seulement : un message d'erreur de validation pourrait citer des valeurs.
       const chemins = [...new Set(valide.error.issues.map((i) => i.path.join(".")))].slice(0, 5);
@@ -144,7 +194,7 @@ export function creerEvaluateurIa(
     }
 
     try {
-      const { evaluation, avertissements } = normaliserReponse(valide.data, {
+      const { evaluation, avertissements } = normaliserReponse(depuisReponseApi(valide.data), {
         texteSource: entree.images.length === 0 ? entree.texte : null,
       });
       return {

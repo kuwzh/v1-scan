@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "eval": "tsx evals/run.ts"
+    "eval": "tsx evals/run.ts",
+    "check:anthropic": "tsx scripts/check-anthropic.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

@@ -20,5 +20,6 @@ export type {
   TypeImage,
   UsageIa,
 } from "./types";
-export { ReponseModeleSchema, SCHEMA_REPONSE } from "./wire";
-export type { ReponseModele } from "./wire";
+export { ReponseApiSchema, ReponseModeleSchema, SCHEMA_REPONSE, depuisReponseApi } from "./wire";
+export type { ReponseApi, ReponseModele } from "./wire";
+export { LIMITES_API, verifierSchema } from "./schema-limites";

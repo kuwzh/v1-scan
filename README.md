@@ -192,6 +192,11 @@ Pour les commandes `curl`, lancer la preview avec un lien partageable, ou tester
 **Anthropic**
 
 - [ ] Renseigner `ANTHROPIC_API_KEY` ; garder `claude-haiku-5-5` par défaut.
+- [ ] `pnpm check:anthropic` (clé dans l'environnement ou `.env.local`) : vérifie le schéma de sortie
+      hors ligne contre les limites documentées d'Anthropic, puis fait deux appels réels (texte, puis
+      une capture de `evals/images`) et affiche la transcription obtenue. En cas de refus, la ligne
+      `détail` donne le type et le message exacts de l'API. `--hors-ligne` ne vérifie que le schéma,
+      sans clé ; `--sans-image`, `--model`, `--effort`, `--image` ajustent l'appel.
 - [ ] `pnpm eval` (plan, sans appel) puis `pnpm eval --run` : aucune erreur `configuration` ni
       `reponse_invalide` (c'est la preuve que le schéma de sortie est accepté), faux positifs sur les
       conversations saines, taux d'invention et calibration de la confiance.
@@ -245,6 +250,15 @@ qu'une fois. (« Acheteur : » n'est pas retiré : si l'utilisateur vend, c'est 
 suite d'une longue conversation. Jusqu'à 150 messages de 4 000 caractères sont conservés. Cela
 allonge la réponse : `ANTHROPIC_MAX_TOKENS=8000` et `ANTHROPIC_TIMEOUT_MS=30000` par défaut ; mesurer la
 latence avec `pnpm eval --run` avant de s'engager sur « moins de 10 s ».
+
+**Schéma de sortie.** Le schéma envoyé à Anthropic (`output_config.format`) est écrit pour les limites
+documentées des sorties structurées : objets fermés, tout requis, aucune borne ni longueur, et **au plus
+16 paramètres avec union** (`anyOf` ou nullable). Une donnée absente n'est donc pas `null` mais signalée
+par la confiance « aucune » (valeur neutre ignorée), la plateforme inconnue par « inconnue » ;
+`depuisReponseApi` remet des `null`. La validation stricte des valeurs se fait côté serveur avec zod
+(`ReponseApiSchema`, puis `AiEvaluationSchema`). Un test et `pnpm check:anthropic` comptent les unions et
+refusent tout schéma que l'API rejetterait. Un refus d'Anthropic est journalisé avec son type, son
+message et son identifiant de requête (clés et données encodées masquées, jamais le contenu).
 
 **Quand l'IA n'a pas servi**, le résultat dit pourquoi (`partielle.diagnostic`, et `erreur.diagnostic`
 pour des captures seules) : _toutes_ les variables manquantes d'un coup (`ANTHROPIC_API_KEY`,

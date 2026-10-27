@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { ReponseModeleSchema, SCHEMA_REPONSE } from "./wire";
-import { reponseModele } from "./test-utils";
+import { LIMITES_API, UNIONS_RECOMMANDEES, verifierSchema } from "./schema-limites";
+import {
+  CONFIANCES_API,
+  PLATEFORMES_API,
+  ReponseApiSchema,
+  ReponseModeleSchema,
+  SCHEMA_REPONSE,
+  depuisReponseApi,
+} from "./wire";
+import { reponseModele, versReponseApi } from "./test-utils";
 
 type Noeud = Record<string, unknown>;
 const schema: Noeud = SCHEMA_REPONSE;
@@ -103,28 +111,32 @@ describe("schéma envoyé à l'API", () => {
     ]);
   });
 
-  it("les données non visibles peuvent être null, et leur confiance aussi", () => {
+  it("aucune donnée n'est nullable : une donnée absente se dit par la confiance « aucune »", () => {
     const annonce = sousChamp("donnees_extraites", "annonce");
     const vendeur = sousChamp("donnees_extraites", "vendeur");
-    expect(accepteNull(proprietes(annonce).prix_eur)).toBe(true);
-    expect(accepteNull(proprietes(vendeur).nombre_avis)).toBe(true);
-    expect(accepteNull(proprietes(vendeur).anciennete_jours)).toBe(true);
-    expect(accepteNull(proprietes(vendeur).note_sur_5)).toBe(true);
+    for (const champ of Object.values(proprietes(annonce))) expect(accepteNull(champ)).toBe(false);
+    for (const champ of Object.values(proprietes(vendeur))) expect(accepteNull(champ)).toBe(false);
     const confVendeur = sousChamp("donnees_extraites", "confiance", "vendeur");
-    expect(accepteNull(proprietes(confVendeur).nombre_avis)).toBe(true);
-    expect(accepteNull(proprietes(confVendeur).anciennete_jours)).toBe(true);
+    for (const champ of Object.values(proprietes(confVendeur))) {
+      expect(accepteNull(champ)).toBe(false);
+      expect(resoudre(champ).enum).toEqual([...CONFIANCES_API]);
+    }
+    expect(resoudre(proprietes(sousChamp("donnees_extraites")).plateforme).enum).toEqual([
+      ...PLATEFORMES_API,
+    ]);
   });
 
-  it("rappelle au plus près de chaque donnée qu'il faut mettre null si ce n'est pas visible", () => {
+  it("rappelle au plus près de chaque donnée comment dire qu'elle est absente", () => {
     const annonce = proprietes(sousChamp("donnees_extraites", "annonce"));
     const vendeur = proprietes(sousChamp("donnees_extraites", "vendeur"));
     for (const champ of [
+      annonce.titre,
       annonce.prix_eur,
       vendeur.anciennete_jours,
       vendeur.nombre_avis,
       vendeur.note_sur_5,
     ]) {
-      expect(String(champ?.description)).toContain("null");
+      expect(String(champ?.description)).toContain("aucune");
     }
   });
 
@@ -133,7 +145,7 @@ describe("schéma envoyé à l'API", () => {
     expect(gravite.enum).toEqual(["info", "attention", "importante"]);
   });
 
-  it("chaque message porte un auteur et une confiance parmi des valeurs fermées", () => {
+  it("chaque message porte un auteur et une confiance parmi des valeurs fermées (la confiance d'un message n'est jamais « aucune »)", () => {
     const message = proprietes(resoudre(sousChamp("donnees_extraites", "messages").items));
     expect(resoudre(message.confiance).enum).toEqual(["haute", "moyenne", "basse"]);
     expect(resoudre(message.auteur).enum).toEqual(["vendeur", "acheteur", "inconnu"]);
@@ -158,5 +170,117 @@ describe("ReponseModeleSchema", () => {
     expect(ReponseModeleSchema.safeParse(r).success).toBe(false);
     r.donnees_extraites.messages = [{ auteur: "moi" as never, confiance: "haute", texte: "x" }];
     expect(ReponseModeleSchema.safeParse(r).success).toBe(false);
+  });
+});
+
+describe("schéma envoyé à l'API : limites documentées (HTTP 400 sinon)", () => {
+  const verification = verifierSchema(SCHEMA_REPONSE);
+
+  it("respecte toutes les limites des sorties structurées d'Anthropic", () => {
+    expect(verification.violations).toEqual([]);
+  });
+
+  it(`n'a aucune union : la limite est de ${LIMITES_API.unions} et les ${25} champs nullables de la première version l'ont dépassée`, () => {
+    expect(verification.stats.unions).toBeLessThanOrEqual(UNIONS_RECOMMANDEES);
+    expect(verification.stats.unions).toBe(0);
+  });
+
+  it("n'a aucun paramètre optionnel (tout est requis)", () => {
+    expect(verification.stats.optionnels).toBe(0);
+  });
+
+  it("reste de taille raisonnable (la grammaire compilée croît avec le schéma)", () => {
+    expect(verification.stats.tailleOctets).toBeLessThan(12_000);
+    expect(verification.stats.objets).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe("ReponseApiSchema et depuisReponseApi", () => {
+  it("accepte la réponse de l'API, sous la forme sans null", () => {
+    expect(ReponseApiSchema.safeParse(versReponseApi(reponseModele())).success).toBe(true);
+  });
+
+  it("refuse un null : l'API n'en renvoie pas, et il masquerait une donnée absente", () => {
+    const r = versReponseApi(reponseModele());
+    (r.donnees_extraites.annonce as Record<string, unknown>).prix_eur = null;
+    expect(ReponseApiSchema.safeParse(r).success).toBe(false);
+  });
+
+  it("refuse une confiance inconnue, une gravité « critique » et un score non numérique", () => {
+    const base = versReponseApi(reponseModele());
+    expect(ReponseApiSchema.safeParse({ ...base, score: "très élevé" }).success).toBe(false);
+    expect(
+      ReponseApiSchema.safeParse({
+        ...base,
+        signaux: [{ label: "x", gravite: "critique" }],
+      }).success,
+    ).toBe(false);
+    const confiance = structuredClone(base);
+    (confiance.donnees_extraites.confiance.vendeur as Record<string, unknown>).nombre_avis =
+      "certaine";
+    expect(ReponseApiSchema.safeParse(confiance).success).toBe(false);
+  });
+
+  it("aller-retour : la réponse interne est retrouvée à l'identique", () => {
+    const interne = reponseModele();
+    expect(depuisReponseApi(versReponseApi(interne))).toEqual(interne);
+  });
+
+  it("« aucune » redevient null, valeur neutre comprise : 0 avis lu n'est pas un nombre d'avis inconnu", () => {
+    const interne = reponseModele();
+    interne.donnees_extraites.vendeur.nombre_avis = 0;
+    interne.donnees_extraites.confiance.vendeur.nombre_avis = "haute";
+    interne.donnees_extraites.vendeur.anciennete_jours = null;
+    interne.donnees_extraites.confiance.vendeur.anciennete_jours = null;
+    const retour = depuisReponseApi(versReponseApi(interne)).donnees_extraites;
+    expect(retour.vendeur.nombre_avis).toBe(0);
+    expect(retour.confiance.vendeur.nombre_avis).toBe("haute");
+    expect(retour.vendeur.anciennete_jours).toBeNull();
+    expect(retour.confiance.vendeur.anciennete_jours).toBeNull();
+  });
+
+  it("une valeur renvoyée malgré la confiance « aucune » est ignorée", () => {
+    const api = versReponseApi(reponseModele());
+    api.donnees_extraites.annonce.prix_eur = 4500;
+    api.donnees_extraites.confiance.annonce.prix_eur = "aucune";
+    const d = depuisReponseApi(api).donnees_extraites;
+    expect(d.annonce.prix_eur).toBeNull();
+    expect(d.confiance.annonce.prix_eur).toBeNull();
+  });
+
+  it("une chaîne vide ou un nombre illisible n'est pas une valeur, même avec une confiance", () => {
+    const api = versReponseApi(reponseModele());
+    api.donnees_extraites.annonce.marque = "   ";
+    api.donnees_extraites.confiance.annonce.marque = "haute";
+    api.donnees_extraites.vendeur.note_sur_5 = Number.NaN;
+    api.donnees_extraites.confiance.vendeur.note_sur_5 = "haute";
+    const d = depuisReponseApi(api).donnees_extraites;
+    expect(d.annonce.marque).toBeNull();
+    expect(d.confiance.annonce.marque).toBeNull();
+    expect(d.vendeur.note_sur_5).toBeNull();
+    expect(d.confiance.vendeur.note_sur_5).toBeNull();
+  });
+
+  it("la plateforme « inconnue » redevient null, les autres sont gardées", () => {
+    const api = versReponseApi(reponseModele());
+    api.donnees_extraites.plateforme = "inconnue";
+    expect(depuisReponseApi(api).donnees_extraites.plateforme).toBeNull();
+    api.donnees_extraites.plateforme = "leboncoin";
+    expect(depuisReponseApi(api).donnees_extraites.plateforme).toBe("leboncoin");
+  });
+
+  it("le profil vérifié : false avec la confiance « aucune » est inconnu, pas « non vérifié »", () => {
+    const api = versReponseApi(reponseModele());
+    api.donnees_extraites.vendeur.profil_verifie = false;
+    api.donnees_extraites.confiance.vendeur.profil_verifie = "aucune";
+    expect(depuisReponseApi(api).donnees_extraites.vendeur.profil_verifie).toBeNull();
+    api.donnees_extraites.confiance.vendeur.profil_verifie = "haute";
+    expect(depuisReponseApi(api).donnees_extraites.vendeur.profil_verifie).toBe(false);
+  });
+
+  it("le résultat de la conversion respecte la forme interne", () => {
+    expect(
+      ReponseModeleSchema.safeParse(depuisReponseApi(versReponseApi(reponseModele()))).success,
+    ).toBe(true);
   });
 });

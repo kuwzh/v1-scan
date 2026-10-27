@@ -2,13 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
 import {
   classerErreur,
+  nettoyerMessageApi,
   construireRequete,
   creerClientAnthropic,
   creerEvaluateurIa,
   type ClientIa,
 } from "./client";
 import { lireConfigIa } from "./config";
-import { messageFactice, reponseModele } from "./test-utils";
+import { messageFactice, reponseModele, versReponseApi } from "./test-utils";
 import { SCHEMA_REPONSE } from "./wire";
 
 const config = {
@@ -36,7 +37,8 @@ const clientEnErreur = (erreur: unknown): ClientIa => ({
     throw erreur;
   },
 });
-const json = (r = reponseModele()) => JSON.stringify(r);
+/** Ce que le modèle renvoie : la forme demandée à l'API (sans `null`). */
+const json = (r = reponseModele()) => JSON.stringify(versReponseApi(r));
 
 describe("construireRequete", () => {
   const image = (n: string) => ({ mediaType: "image/png" as const, base64: n });
@@ -187,7 +189,7 @@ describe("creerEvaluateurIa : échecs de la réponse", () => {
 
   it("JSON de la mauvaise forme : le détail liste des chemins, pas des valeurs", async () => {
     const mauvais = {
-      ...reponseModele(),
+      ...versReponseApi(reponseModele()),
       score: "très élevé",
       secret: "contenu-utilisateur-confidentiel",
     };
@@ -256,12 +258,11 @@ describe("creerEvaluateurIa : erreurs de l'API", () => {
     expect(await en("une chaîne jetée")).toMatchObject({ raison: "indisponible" });
   });
 
-  it("ne lève jamais d'exception et ne laisse fuiter aucun message d'erreur dans le détail", async () => {
+  it("ne lève jamais d'exception ; le détail donne le statut, le type et le message de l'API", async () => {
     const r = await en(erreurHttp(429));
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(JSON.stringify(r)).not.toContain("confidentiel");
-    expect(r.detail).toBe("HTTP 429");
+    expect(r.detail).toBe("HTTP 429 (x) : contenu-utilisateur-confidentiel");
   });
 
   it("ne logge rien", async () => {
@@ -290,5 +291,169 @@ describe("creerClientAnthropic", () => {
     expect(() =>
       creerClientAnthropic(lireConfigIa({ ANTHROPIC_API_KEY: "sk-test" })),
     ).not.toThrow();
+  });
+});
+
+describe("erreur de l'API : le corps exact est restitué, nettoyé", () => {
+  const erreur = (statut: number, corps: unknown, requete = "req_011CVabc123") =>
+    Anthropic.APIError.generate(
+      statut,
+      corps as Record<string, unknown>,
+      undefined,
+      new Headers({ "request-id": requete }),
+    );
+  const corpsApi = (type: string, message: string) => ({
+    type: "error",
+    error: { type, message },
+    request_id: "req_corps",
+  });
+
+  it("HTTP 400 : statut, type, message et identifiant de requête", () => {
+    const r = classerErreur(
+      erreur(
+        400,
+        corpsApi(
+          "invalid_request_error",
+          "output_config.format.schema: too many parameters with union types (25 > 16)",
+        ),
+      ),
+    );
+    expect(r.raison).toBe("configuration");
+    expect(r.detail).toBe(
+      "HTTP 400 (invalid_request_error) : output_config.format.schema: too many parameters with union types (25 > 16) [req_011CVabc123]",
+    );
+  });
+
+  it("le message d'une erreur de schéma trop complexe est lisible tel quel", () => {
+    const r = classerErreur(
+      erreur(400, corpsApi("invalid_request_error", "Schema is too complex for compilation.")),
+    );
+    expect(r.detail).toContain("Schema is too complex for compilation.");
+  });
+
+  it("erreur 5xx et 429 : même format, raison « indisponible »", () => {
+    const r = classerErreur(erreur(529, corpsApi("overloaded_error", "Overloaded")));
+    expect(r).toEqual({
+      raison: "indisponible",
+      detail: "HTTP 529 (overloaded_error) : Overloaded [req_011CVabc123]",
+    });
+  });
+
+  it("sans identifiant de requête : pas de crochets", () => {
+    const e = Anthropic.APIError.generate(
+      401,
+      corpsApi("authentication_error", "invalid x-api-key"),
+      undefined,
+      new Headers(),
+    );
+    expect(classerErreur(e).detail).toBe("HTTP 401 (authentication_error) : invalid x-api-key");
+  });
+
+  it("corps absent, texte brut ou de forme inattendue : jamais d'exception", () => {
+    expect(classerErreur(erreur(502, undefined)).detail).toBe("HTTP 502 [req_011CVabc123]");
+    expect(classerErreur(erreur(500, "<html>Bad gateway</html>")).detail).toContain(
+      "<html>Bad gateway</html>",
+    );
+    expect(classerErreur(erreur(400, { error: "pas un objet" })).detail).toContain("HTTP 400");
+    expect(classerErreur(erreur(400, { error: { message: 42 } })).detail).toContain("HTTP 400");
+    expect(classerErreur(erreur(400, { type: "error", error: null })).detail).toContain("HTTP 400");
+  });
+
+  it("une clé d'API éventuellement citée par le message est masquée", () => {
+    const cle = "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
+    const r = classerErreur(
+      erreur(401, corpsApi("authentication_error", `invalid x-api-key: ${cle}`)),
+    );
+    expect(r.detail).not.toContain(cle);
+    expect(r.detail).not.toContain("AbCdEf");
+    expect(r.detail).toContain("[clé masquée]");
+  });
+
+  it("une longue suite de données encodées (image en base64) est masquée", () => {
+    const base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk".repeat(10);
+    const r = classerErreur(
+      erreur(400, corpsApi("invalid_request_error", `image data: ${base64} is invalid`)),
+    );
+    expect(r.detail).not.toContain("iVBORw0KGgo");
+    expect(r.detail).toContain("[données masquées]");
+    expect(r.detail).toContain("is invalid");
+  });
+
+  it("le message est tronqué et tient sur une ligne", () => {
+    const long = `ligne un\n\n  ligne deux ${"mot ".repeat(400)}`;
+    const r = classerErreur(erreur(400, corpsApi("invalid_request_error", long)));
+    expect(r.detail).not.toContain("\n");
+    expect(r.detail.length).toBeLessThan(600);
+    expect(r.detail).toContain("…");
+  });
+
+  it("une panne réseau ou un délai n'ont pas de corps à citer", () => {
+    expect(classerErreur(new Anthropic.APIConnectionTimeoutError()).detail).toBe("délai dépassé");
+    expect(classerErreur(new Anthropic.APIConnectionError({ message: "x" })).detail).toBe(
+      "connexion impossible",
+    );
+  });
+});
+
+describe("nettoyerMessageApi", () => {
+  it("masque les clés, les jetons Bearer et les longues données encodées", () => {
+    const sortie = nettoyerMessageApi(
+      "clé sk-ant-api03-ABCDEFGH12345678 et Bearer abc.def-ghi_jkl ; données " + "A".repeat(80),
+    );
+    expect(sortie).toBe("clé [clé masquée] et Bearer [masqué] ; données [données masquées]");
+  });
+
+  it("laisse intacts les messages de validation ordinaires", () => {
+    const message =
+      "messages.0.content.1.image.source.base64.media_type: Input should be 'image/jpeg', 'image/png', 'image/gif' or 'image/webp'";
+    expect(nettoyerMessageApi(message)).toBe(message);
+  });
+});
+
+describe("construireRequete : les images", () => {
+  const entreeImages = {
+    images: [
+      { mediaType: "image/jpeg" as const, base64: "/9j/4AAQSkZJRgABAQ==" },
+      { mediaType: "image/png" as const, base64: "iVBORw0KGgoAAAANSUhEUg==" },
+      { mediaType: "image/webp" as const, base64: "UklGRiQAAABXRUJQVlA4IBgAAAAw" },
+    ],
+    texte: "Bonjour",
+    aujourdhui: "2026-10-27",
+  };
+  const blocs = () =>
+    construireRequete(entreeImages, config).messages[0]?.content as Array<{
+      type: string;
+      source?: { type: string; media_type: string; data: string };
+    }>;
+
+  it("chaque image est un bloc {type: image, source: {type: base64, media_type, data}} aux noms exacts de l'API", () => {
+    const images = blocs().filter((b) => b.type === "image");
+    expect(images).toHaveLength(3);
+    for (const [i, b] of images.entries()) {
+      expect(Object.keys(b).sort()).toEqual(["source", "type"]);
+      expect(Object.keys(b.source ?? {}).sort()).toEqual(["data", "media_type", "type"]);
+      expect(b.source?.type).toBe("base64");
+      expect(b.source?.media_type).toBe(entreeImages.images[i]?.mediaType);
+      expect(b.source?.data).toBe(entreeImages.images[i]?.base64);
+    }
+  });
+
+  it("n'emploie que les types d'image que l'API accepte (jpeg, png, gif, webp)", () => {
+    const acceptes = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+    for (const b of blocs().filter((x) => x.type === "image")) {
+      expect(acceptes.has(b.source?.media_type ?? "")).toBe(true);
+    }
+  });
+
+  it("les données sont du base64 pur : sans préfixe data:, sans saut de ligne ni espace", () => {
+    for (const b of blocs().filter((x) => x.type === "image")) {
+      expect(b.source?.data).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+      expect(b.source?.data).not.toContain("data:");
+    }
+  });
+
+  it("les images précèdent le texte, qui est le dernier bloc", () => {
+    const types = blocs().map((b) => b.type);
+    expect(types).toEqual(["image", "image", "image", "text"]);
   });
 });

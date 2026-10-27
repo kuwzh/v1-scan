@@ -245,6 +245,54 @@ describe("des captures seules sans IA : l'erreur dit pourquoi", () => {
   });
 });
 
+describe("HTTP 400 d'Anthropic : le message exact arrive jusqu'au « Pourquoi ? » et au journal", () => {
+  const DETAIL =
+    "HTTP 400 (invalid_request_error) : Schema is too complex for compilation. [req_011CVabc123]";
+  const ia400 = () => evaluateurFactice({ echec: { raison: "configuration", detail: DETAIL } });
+
+  it("analyse partielle : le « Pourquoi ? » cite le type et le message de l'API", async () => {
+    const { deps } = creerContexteTest({ ia: ia400() });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await reponseAnalyse(
+      await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps),
+    );
+    expect(r.partielle?.diagnostic?.code).toBe("ia_echec_configuration");
+    expect(r.partielle?.diagnostic?.message).toContain("invalid_request_error");
+    expect(r.partielle?.diagnostic?.message).toContain("Schema is too complex for compilation.");
+    expect(r.partielle?.diagnostic?.message).toContain("req_011CVabc123");
+  });
+
+  it("captures seules : l'erreur porte le même détail", async () => {
+    const { deps } = creerContexteTest({ ia: ia400() });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const e = await erreur(await traiterAnalyse(requeteAnalyse({ images: [imagePng()] }), deps));
+    expect(e.code).toBe("ia_indisponible");
+    expect(e.diagnostic?.message).toContain("Schema is too complex for compilation.");
+  });
+
+  it("le journal contient la ligne complète : code d'échec, type, message et identifiant de requête", async () => {
+    const erreurs = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { deps } = creerContexteTest({ ia: ia400() });
+    await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps);
+    expect(erreurs).toHaveBeenCalledTimes(1);
+    const ligne = String(erreurs.mock.calls[0]?.[0]);
+    expect(ligne).toBe(`[gardo] appel IA en échec : ia_echec_configuration (${DETAIL})`);
+    // Jamais le contenu de la conversation.
+    expect(ligne).not.toMatch(/whatsapp|virement|mandat/i);
+  });
+
+  it("SHOW_DIAGNOSTICS=false : l'utilisateur ne voit que la phrase générale, le journal garde le détail", async () => {
+    const erreurs = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { deps } = creerContexteTest({ ia: ia400(), env: { SHOW_DIAGNOSTICS: "false" } });
+    const r = await reponseAnalyse(
+      await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps),
+    );
+    expect(r.partielle?.diagnostic?.message).toBe(fr.diagnostic.ia_echec_configuration.public);
+    expect(r.partielle?.diagnostic?.message).not.toContain("Schema is too complex");
+    expect(String(erreurs.mock.calls[0]?.[0])).toContain("Schema is too complex");
+  });
+});
+
 describe("journalisation des échecs de l'IA", () => {
   it("note le code d'échec et l'état HTTP, jamais le contenu", async () => {
     const erreurs = vi.spyOn(console, "error").mockImplementation(() => {});
