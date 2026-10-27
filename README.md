@@ -50,6 +50,7 @@ src/
                 typosquatting, raccourcisseurs, TLD à risque (aucune requête réseau)
     security/   config des garde-fous, stockage (Upstash / mémoire), IP hashée, rate limit,
                 plafond de dépense, validation des images, lecture bornée du corps
+    partage/    carte de partage 9:16 : données affichées (`carte.ts`) et dessin canvas (`dessin.ts`)
     prix/       comparaison de prix : recherche web (Claude + `web_search`), seuils, cache, recalcul du score
     client/     logique du navigateur sans React : compression des captures, appels à l'API, état des écrans
     api/        les handlers `traiterAnalyse`, `traiterPrix`, `traiterFeedback`, `traiterStats` : Request → Response,
@@ -69,7 +70,7 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [x] 5. Route `/api/v1/analyze`, rate limit, plafond de dépense, compteur d'analyses, route de feedback
 - [x] 6. UI mobile : upload, loader, écran résultat, feedback 👍👎 anonyme
 - [x] Comparaison de prix à la demande (recherche web, cache 24 h, signal « importante » / « attention » ; voir plus bas)
-- [ ] 7. Carte de partage 9:16
+- [x] 7. Carte de partage 9:16 (canvas côté navigateur, Web Share API avec fichier, repli téléchargement / aperçu iPhone)
 - [ ] 8. PWA et Web Share Target (Android)
 - [ ] 9. Page Confidentialité, landing avec compteur « X annonces vérifiées »
 - [ ] 10. Lien d'annonce Vinted / Leboncoin en best-effort, derrière un flag
@@ -229,8 +230,41 @@ Pour les commandes `curl`, lancer la preview avec un lien partageable, ou tester
       `prix:<marque>:<modèle>:<état>` (TTL ≈ 86 400 s). Un second clic sur le même article dit
       « estimation récente » et ne coûte rien. Vérifier aussi que l'outil de recherche web est
       autorisé pour l'organisation Anthropic.
+- [ ] Carte de partage, sur un iPhone réel (Safari, puis une appli de story) : voir le compte rendu de
+      l'étape 7 ; en résumé, partager vers Instagram / Snap / TikTok, enregistrer dans Photos, et
+      vérifier la carte dans une story (rien de coupé en haut ni en bas).
 - [ ] Si l'éval montre trop d'erreurs d'extraction, passer à `ANTHROPIC_MODEL=claude-sonnet-5-5`
       (sans changement de code) et relancer l'éval.
+
+## Carte de partage
+
+Le bouton « Partager le résultat » de l'écran résultat produit une image **1080 × 1920** (story TikTok,
+Instagram, Snap) : logo et adresse du site, jauge colorée avec le score et le niveau, les 3 signaux les
+plus graves en phrases courtes (+ « N autres signaux »), un rassurant, le site analysé, l'écart de prix
+si la comparaison a été faite (« −65 % vs prix d'occasion habituel »), l'accroche « Vérifie tes
+annonces avant de payer → adresse » et la mention « Estimation, aide à la décision ». Fond sombre,
+mêmes couleurs que l'app, même pile de polices (déjà présente sur l'appareil, rien à charger).
+
+- **100 % côté client.** `genererImage` dessine dans un canvas local ; rien n'est envoyé au serveur ni
+  mis dans une URL. L'image est un PNG de 1080 × 1920 px quelle que soit la densité de l'écran : elle
+  n'est jamais affichée par le canvas, donc pas de mise à l'échelle ; l'aperçu est une vraie `<img>`.
+- **Confidentialité par construction.** Le dessin ne reçoit que `DonneesCarte` (`carte.ts`) : jamais la
+  capture (`drawImage` n'est pas utilisé, un test le vérifie), jamais le texte libre de l'analyse. Les
+  signaux de l'IA peuvent citer un pseudo ou un message, et certains libellés de règles contiennent un
+  prix exact ou un domaine : la carte n'utilise donc que des **phrases fixes par identifiant de règle**
+  (`fr.partage`). Les signaux de l'IA ne sont comptés que dans « + N autres signaux ». Un test impose une
+  phrase pour chaque règle du code (une nouvelle règle sans phrase fait échouer la CI). Aucun montant :
+  seul l'écart de prix apparaît, arrondi à 5 %, et seulement pour une estimation fiable.
+- **Partage.** `navigator.canShare({ files })` puis `navigator.share` avec le PNG (mobile). L'image est
+  préparée dès l'affichage du résultat : Safari refuse `share()` si trop de temps s'écoule après le
+  clic. Si la personne ferme la feuille, rien ne se passe. Sans partage de fichier : **iPhone / iPad**
+  → un aperçu avec la consigne d'appui long (« Ajouter à Photos »), car un fichier téléchargé sur iOS
+  va dans Fichiers et non dans Photos ; **ailleurs** → téléchargement de `gardo-resultat.png`.
+- **Mise en page.** Contenu hors des zones couvertes par l'interface des stories (haut ~250 px). Si les
+  signaux sont longs, le contenu se resserre (sans le décompte, puis une ligne par signal, puis sans
+  rassurant) plutôt que de recouvrir l'accroche ; une adresse très longue est réduite puis tronquée.
+- **Adresse affichée** : l'hôte de `NEXT_PUBLIC_SITE_URL` (lue à la compilation), sinon
+  `v1-scan.vercel.app`.
 
 ## Comparaison de prix
 
@@ -344,6 +378,6 @@ conservées sont, pour une heure, l'article d'une analyse comparable (marque, mo
 prix, et des nombres pour recalculer le score : clé `produit:<uuid>`, sans conversation ni capture), pour
 24 h l'estimation de prix d'un article (clé `prix:…`, sans le prix de l'annonce), et des agrégats anonymes (compteur d'analyses, votes de feedback sous forme de score
 arrondi, niveau et vote, sans aucun contenu) et des compteurs de rate limiting sur une IP hashée à
-durée de vie courte. La recherche de prix envoie à l'API d'Anthropic la marque, le modèle, la catégorie
+durée de vie courte. La carte de partage est dessinée dans le navigateur : rien n'est envoyé au serveur. La recherche de prix envoie à l'API d'Anthropic la marque, le modèle, la catégorie
 et l'état de l'article (jamais le prix de l'annonce ni la conversation). Les détails figureront sur la
 page Confidentialité.

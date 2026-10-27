@@ -98,7 +98,7 @@ export function Verificateur() {
       {vue.nom === "envoi" && <Chargement onAnnuler={annuler} />}
       {vue.nom === "resultat" && (
         <div className="pb-10">
-          <Resultat reponse={vue.reponse} onRecommencer={recommencer} />
+          <Resultat reponse={vue.reponse} site={site} onRecommencer={recommencer} />
         </div>
       )}
       <noscript>

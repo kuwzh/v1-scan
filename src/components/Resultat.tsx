@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnalyzeResponse } from "@/lib/contracts/api";
 import type { PrixResponse } from "@/lib/contracts/prix";
+import type { Plateforme } from "@/lib/contracts/extracted";
 import type { Niveau } from "@/lib/contracts/niveau";
 import type { Gravite } from "@/lib/contracts/signals";
 import { fr } from "@/lib/copy/fr";
+import { construireCarte, hotePartage } from "@/lib/partage/carte";
 import { appliquerPrix } from "@/lib/prix/appliquer";
 import { CartePrix } from "./CartePrix";
 import { Feedback } from "./Feedback";
 import { Jauge } from "./Jauge";
+import { PartageResultat } from "./PartageResultat";
 
 const CARTE_NIVEAU: Record<Niveau, string> = {
   faible: "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50",
@@ -31,6 +34,9 @@ const BORD_GRAVITE: Record<Gravite, string> = {
   critique: "border-l-red-600",
 };
 
+/** Adresse affichée sur la carte de partage (lue à la compilation). */
+const HOTE_PARTAGE = hotePartage(process.env.NEXT_PUBLIC_SITE_URL);
+
 function Section({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
@@ -42,9 +48,12 @@ function Section({ titre, children }: { titre: string; children: React.ReactNode
 
 export function Resultat({
   reponse,
+  site = null,
   onRecommencer,
 }: {
   reponse: AnalyzeResponse;
+  /** Site choisi par l'utilisateur : repli pour la carte de partage si l'analyse n'a lu aucune plateforme. */
+  site?: Plateforme | null;
   onRecommencer: () => void;
 }) {
   const { partielle } = reponse;
@@ -52,6 +61,10 @@ export function Resultat({
   // La comparaison de prix (à la demande) met à jour le score et les signaux affichés.
   const [prix, setPrix] = useState<PrixResponse | null>(null);
   const resultat = prix ? appliquerPrix(reponse.resultat, prix) : reponse.resultat;
+  const carte = useMemo(
+    () => construireCarte({ resultat, site, prix, hote: HOTE_PARTAGE }),
+    [resultat, site, prix],
+  );
   const titre = useRef<HTMLHeadingElement>(null);
   // Les lecteurs d'écran annoncent le résultat dès qu'il apparaît.
   useEffect(() => {
@@ -158,6 +171,10 @@ export function Resultat({
       <p className="mt-8 rounded-2xl bg-neutral-100 p-4 text-sm text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
         {fr.disclaimer}
       </p>
+
+      <div className="mt-8">
+        <PartageResultat donnees={carte} />
+      </div>
 
       <div className="mt-8 border-t border-neutral-200 pt-6 dark:border-neutral-800">
         <Feedback analyseId={reponse.analyse_id} />

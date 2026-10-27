@@ -403,6 +403,120 @@ export const fr = {
     erreur: "La comparaison de prix n'a pas abouti",
   },
 
+  /**
+   * Carte de partage (image 9:16 pour une story). Elle ne reprend JAMAIS le texte libre d'une
+   * analyse : ni celui de l'IA (il peut citer un pseudo ou un message), ni les libellés des règles
+   * (certains contiennent un prix exact ou un domaine). Chaque signal des règles a ici sa phrase
+   * courte, sans aucune donnée de l'annonce ; un test impose une phrase pour chaque règle.
+   */
+  partage: {
+    bouton: "Partager le résultat",
+    preparation: "Préparation de l'image…",
+    nomFichier: "gardo-resultat.png",
+    accroche: "Vérifie tes annonces avant de payer",
+    mention: "Estimation, aide à la décision",
+    annonce: (site: string) => `Annonce ${site}`,
+    ecartPrix: {
+      sous: (pourcentage: number) => `−${pourcentage} % vs prix d'occasion habituel`,
+      dans: "Prix dans la norme de l'occasion",
+      au_dessus: (pourcentage: number) => `+${pourcentage} % vs prix d'occasion habituel`,
+    },
+    autresSignaux: (nombre: number) =>
+      nombre === 1 ? "+ 1 autre signal" : `+ ${nombre} autres signaux`,
+    /** Quand aucun signal des règles n'est montrable (analyse portée par l'IA seule, ou rien à signaler). */
+    sansSignal: {
+      faible: "Peu de signaux d'alerte repérés.",
+      moyen: "Plusieurs points inhabituels repérés.",
+      élevé: "Plusieurs points inhabituels repérés.",
+    } satisfies Record<Niveau, string>,
+    /** Règle sans phrase dédiée (ne devrait pas arriver : un test le vérifie). */
+    signalParGravite: {
+      info: "Un point à noter a été repéré.",
+      attention: "Un point inhabituel a été repéré.",
+      importante: "Un point important a été repéré.",
+      critique: "Un signal d'alerte critique a été repéré.",
+    } satisfies Record<Gravite, string>,
+    /** Phrase courte par identifiant de règle ; deux formes quand la gravité change le sens. */
+    signaux: {
+      "plateforme.whatsapp": "On te propose de passer sur WhatsApp.",
+      "plateforme.telegram": "On te propose de passer sur Telegram.",
+      "plateforme.autre_reseau": "On te propose un autre réseau pour discuter.",
+      "plateforme.hors_plateforme": "On te propose de sortir de la plateforme.",
+      "plateforme.sms": "On te propose de continuer par SMS.",
+      "plateforme.telephone": "Un numéro de téléphone est donné.",
+      "plateforme.email": "Une adresse e-mail est donnée.",
+      "paiement.virement": "Un paiement par virement est évoqué.",
+      "paiement.paypal_proches": "PayPal « entre proches » est évoqué.",
+      "paiement.paypal": "Un paiement PayPal hors plateforme est évoqué.",
+      "paiement.lydia": "Un paiement par Lydia ou cagnotte est évoqué.",
+      "paiement.cheque": "Un paiement par chèque est évoqué.",
+      "paiement.acompte": "Un acompte est demandé avant réception.",
+      "paiement.mandat_carte_cadeau": "Paiement demandé par mandat, carte cadeau ou crypto.",
+      "paiement.coordonnees_bancaires": "Des informations de carte bancaire sont demandées.",
+      "paiement.code_sms": "Un code reçu par SMS est demandé.",
+      "script.paiement_effectue_lien": "Un lien est envoyé pour « recevoir » un paiement.",
+      "script.faux_transporteur": "Un lien de livraison douteux est envoyé.",
+      "script.frais_supplementaires": "Des frais supplémentaires sont demandés.",
+      "script.paiement_securise_faux": "Un « paiement sécurisé » douteux est mis en avant.",
+      "script.trop_percu": "On te demande de rembourser un trop-perçu.",
+      "script.rembourse_apres": "On te demande d'avancer de l'argent.",
+      "script.piece_identite": "Une pièce d'identité est demandée.",
+      "urgence.forte": "On te met la pression pour aller vite.",
+      "urgence.legere": "On te presse un peu pour aller vite.",
+      "liens.externe": "Un lien vers un site externe est partagé.",
+      "lien.sous_domaine_piege": "Un lien imite l'adresse d'un site connu.",
+      "lien.identifiants_trompeurs": "Un lien cache sa vraie destination.",
+      "lien.imitation_marque": "Un lien imite une marque ou une plateforme.",
+      "lien.marque_sous_domaine": "Un lien utilise un nom de marque pour tromper.",
+      "lien.typosquatting": "Un lien ressemble à une adresse connue.",
+      "lien.marque_dans_chemin": "Un lien utilise un nom de marque pour tromper.",
+      "lien.raccourci": "Un lien raccourci cache sa destination.",
+      "lien.adresse_ip": "Un lien utilise une adresse numérique.",
+      "lien.caracteres_inhabituels": "Un lien contient des caractères inhabituels.",
+      "lien.tld_suspect": "Un lien a une terminaison d'adresse peu courante.",
+      "lien.mots_appat": "Un lien contient des mots d'appât (paiement, colis…).",
+      "lien.hebergement_ouvert": "Un lien mène vers une page hébergée en libre accès.",
+      "lien.adresse_inhabituelle": "Un lien a une adresse inhabituelle.",
+      "lien.domaine_recent": "Un lien mène vers un site très récent.",
+      "profil.compte_tres_recent": "Le compte a été créé il y a moins d'une semaine.",
+      "profil.compte_recent": "Le compte a été créé il y a moins d'un mois.",
+      "profil.compte_assez_recent": "Le compte a été créé il y a moins de trois mois.",
+      "profil.aucun_avis": "Le profil n'a encore aucun avis.",
+      "profil.peu_d_avis": "Le profil n'a que quelques avis.",
+      "profil.note_tres_basse": "La note du profil est très basse.",
+      "profil.note_basse": "La note du profil est basse.",
+      "profil.beaucoup_d_annonces": "Compte récent, mais déjà beaucoup d'annonces.",
+      "profil.non_verifie": "Le profil n'est pas vérifié.",
+      "annonce.une_photo": "L'annonce n'a qu'une seule photo.",
+      "prix.tres_bas": "Le prix est très inférieur à l'habitude.",
+      "prix.bas": "Le prix est inhabituellement bas.",
+      "prix.web": "Le prix est très inférieur au marché de l'occasion.",
+    } as Readonly<Record<string, string>>,
+    /** « prix.web » en « attention » : formulation plus nuancée. */
+    signauxNuances: {
+      "prix.web": "Le prix est nettement inférieur au marché de l'occasion.",
+    } as Readonly<Record<string, string>>,
+    rassurants: {
+      "profil.compte_ancien": "Le compte existe depuis longtemps.",
+      "profil.compte_assez_ancien": "Le compte existe depuis plus d'un an.",
+      "profil.nombreux_avis": "Le profil a de nombreux avis.",
+      "profil.plusieurs_avis": "Le profil a plusieurs avis positifs.",
+      "profil.verifie": "Le profil est vérifié par la plateforme.",
+      "plateforme.paiement": "Le paiement passe par la plateforme.",
+    } as Readonly<Record<string, string>>,
+    statut: {
+      enregistree: "Image enregistrée sur cet appareil.",
+      erreur: "L'image n'a pas pu être créée. Réessaie dans un instant.",
+    },
+    apercu: {
+      titre: "Enregistre ton image",
+      aide: "Garde ton doigt appuyé sur l'image, puis choisis « Ajouter à Photos » (ou « Enregistrer »). Tu pourras ensuite la poster en story.",
+      fermer: "Fermer",
+      alt: "Aperçu de la carte de partage",
+    },
+    texte: (hote: string) => `Vérifie tes annonces avant de payer → ${hote}`,
+  },
+
   /** Interface : écran de saisie, chargement, résultat. */
   ui: {
     tagline: "Les signaux d'alerte d'une annonce, en quelques secondes.",
