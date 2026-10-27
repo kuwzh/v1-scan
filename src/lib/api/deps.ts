@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { creerClientAnthropic, creerEvaluateurIa } from "../ai/client";
 import { lireConfigIa, type ConfigIa } from "../ai/config";
 import type { EvaluerIa } from "../ai/types";
+import { creerEstimateurPrix, lireConfigPrix, type ConfigPrix, type EstimerPrix } from "../prix";
 import {
   StockageMemoire,
   creerRedis,
@@ -19,6 +20,9 @@ export interface DependancesApi {
   stockage: Stockage;
   /** `null` : pas de clé d'API, on n'utilise que les règles. */
   evaluateur: EvaluerIa | null;
+  configPrix: ConfigPrix;
+  /** Recherche de prix en ligne. `null` : pas de clé d'API, pas de comparaison. */
+  estimerPrix: EstimerPrix | null;
   /** Secret des empreintes d'IP. Éphémère (propre à l'instance) tant qu'aucun n'est configuré. */
   secretIp: string;
   maintenant: () => Date;
@@ -42,6 +46,7 @@ export function creerDependances(env: Env = process.env): DependancesApi {
   const stockage = config.upstash
     ? creerStockageUpstash(creerRedis(config.upstash.url, config.upstash.token))
     : stockageMemoireUnique();
+  const configPrix = lireConfigPrix(env, configIa);
   const maintenant = () => new Date();
   return {
     config,
@@ -49,6 +54,18 @@ export function creerDependances(env: Env = process.env): DependancesApi {
     stockage,
     evaluateur: configIa.apiKey
       ? creerEvaluateurIa(creerClientAnthropic(configIa), configIa)
+      : null,
+    configPrix,
+    // Pas de nouvel essai du SDK : une recherche rejouée coûterait deux fois, et dépasserait le
+    // délai total de la fonction. Le délai est géré par l'estimateur lui-même.
+    estimerPrix: configIa.apiKey
+      ? creerEstimateurPrix(
+          creerClientAnthropic(
+            { apiKey: configIa.apiKey, timeoutMs: configPrix.timeoutMs },
+            { maxRetries: 0 },
+          ),
+          configPrix,
+        )
       : null,
     secretIp: config.ipSecret ?? randomBytes(32).toString("hex"),
     maintenant,

@@ -24,7 +24,8 @@ import {
   verifierDebit,
   type Reservation,
 } from "../security";
-import { DUREE_ID_ANALYSE_S, cleAnalyse, encoderAnalyse } from "./cles";
+import { encoderProduit, produitComparable } from "../prix/produit";
+import { DUREE_ID_ANALYSE_S, cleAnalyse, clePrixProduit, encoderAnalyse } from "./cles";
 import { compterAnalyse } from "./compteur";
 import type { DependancesApi } from "./deps";
 import { creerDiagnostic, diagnosticDepuisSuivi } from "./diagnostic";
@@ -256,10 +257,32 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
   }
   await compterAnalyse(deps.stockage);
 
+  // Comparaison de prix : proposée seulement si marque ET modèle ont été lus avec une confiance
+  // haute (sinon la recherche payante n'est pas justifiée : la table de prix suffit) et si la
+  // recherche pourra tourner. L'article et de quoi recalculer le score sont gardés une heure.
+  const produit =
+    deps.estimerPrix && autorisation.autorisee && resultat.resultat.meta.mode === "complet"
+      ? produitComparable(resultat.resultat.donnees_extraites)
+      : null;
+  let comparaisonDisponible = false;
+  if (produit) {
+    try {
+      await deps.stockage.poser(
+        clePrixProduit(analyseId),
+        encoderProduit(produit, resultat.contexteScore),
+        DUREE_ID_ANALYSE_S,
+      );
+      comparaisonDisponible = true;
+    } catch {
+      // Sans enregistrement, le bouton n'est pas proposé : l'analyse reste servie.
+    }
+  }
+
   const corpsReponse: AnalyzeResponse = {
     analyse_id: analyseId,
     resultat: resultat.resultat,
     partielle: partielle(resultat.ia, resultat.resultat.meta.mode, iaCoupee, diagnostic),
+    comparaison_prix: { disponible: comparaisonDisponible },
     avis: resultat.lienAnnonce
       ? [
           {

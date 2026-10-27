@@ -2,6 +2,7 @@ import type { AnalyzeResponse } from "../contracts/api";
 import type { CodeErreur } from "../contracts/errors";
 import type { Plateforme } from "../contracts/extracted";
 import type { Vote } from "../contracts/feedback";
+import type { PrixResponse } from "../contracts/prix";
 import { fr } from "../copy/fr";
 
 /**
@@ -184,5 +185,107 @@ export async function envoyerVote(
     return reponse.status === 409 ? "deja" : "echec";
   } catch {
     return "echec";
+  }
+}
+
+export type ResultatComparaison =
+  | { ok: true; reponse: PrixResponse }
+  | { ok: false; annule: true }
+  | { ok: false; annule?: false; erreur: ErreurAffichee };
+
+/** Plus que la recherche côté serveur (50 s au plus par défaut, reprises comprises). */
+export const DELAI_PRIX_CLIENT_MS = 65_000;
+
+const estNombreOuNull = (v: unknown) => v === null || (typeof v === "number" && Number.isFinite(v));
+
+function estReponsePrix(v: unknown): v is PrixResponse {
+  if (!estObjet(v) || (v.statut !== "ok" && v.statut !== "introuvable")) return false;
+  if (typeof v.depuis_cache !== "boolean") return false;
+  const r = v.resultat;
+  if (
+    !estObjet(r) ||
+    typeof r.score !== "number" ||
+    typeof r.niveau !== "string" ||
+    !(r.niveau in fr.niveaux) ||
+    !Array.isArray(r.signaux_retires) ||
+    !r.signaux_retires.every((id) => typeof id === "string")
+  ) {
+    return false;
+  }
+  const e = v.estimation;
+  if (
+    e !== null &&
+    !(
+      estObjet(e) &&
+      typeof e.article === "string" &&
+      estNombreOuNull(e.prix_neuf_eur) &&
+      estNombreOuNull(e.occasion_min_eur) &&
+      estNombreOuNull(e.occasion_max_eur) &&
+      typeof e.confiance === "string" &&
+      e.confiance in fr.prix.confiance &&
+      Array.isArray(e.sources) &&
+      e.sources.every(
+        (s) => estObjet(s) && typeof s.url === "string" && typeof s.titre === "string",
+      )
+    )
+  ) {
+    return false;
+  }
+  const c = v.comparaison;
+  if (
+    c !== null &&
+    !(
+      estObjet(c) &&
+      typeof c.prix_annonce_eur === "number" &&
+      typeof c.occasion_habituelle_eur === "number" &&
+      typeof c.ecart_pct === "number" &&
+      typeof c.part_du_bas_pct === "number" &&
+      typeof c.fiable === "boolean"
+    )
+  ) {
+    return false;
+  }
+  const s = v.signal;
+  return (
+    s === null ||
+    (estObjet(s) &&
+      typeof s.id === "string" &&
+      typeof s.label === "string" &&
+      typeof s.gravite === "string" &&
+      s.gravite in fr.gravites)
+  );
+}
+
+/**
+ * Demande la comparaison de prix d'une analyse. Seul l'identifiant part : l'article et le prix
+ * sont retrouvés côté serveur.
+ */
+export async function comparerPrix(
+  analyseId: string,
+  options: OptionsEnvoi = {},
+): Promise<ResultatComparaison> {
+  const appel = signalAvecDelai(options.signal, options.delaiMs ?? DELAI_PRIX_CLIENT_MS);
+  try {
+    const reponse = await (options.fetch ?? fetch)("/api/v1/prix", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ analyse_id: analyseId }),
+      signal: appel.signal,
+    });
+    const corps: unknown = await reponse.json().catch(() => null);
+    if (reponse.ok) {
+      return estReponsePrix(corps)
+        ? { ok: true, reponse: corps }
+        : { ok: false, erreur: erreur("reponse_inattendue", fr.ui.erreur.inattendue) };
+    }
+    return { ok: false, erreur: erreurDepuisReponse(corps, reponse.headers.get("retry-after")) };
+  } catch {
+    if (appel.delaiDepasse()) {
+      return { ok: false, erreur: erreur("delai_depasse", fr.ui.erreur.delai) };
+    }
+    if (options.signal?.aborted) return { ok: false, annule: true };
+    return { ok: false, erreur: erreur("reseau", fr.ui.erreur.reseau) };
+  } finally {
+    appel.nettoyer();
   }
 }

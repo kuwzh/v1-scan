@@ -226,6 +226,21 @@ describe("ReponseApiSchema et depuisReponseApi", () => {
     expect(depuisReponseApi(versReponseApi(interne))).toEqual(interne);
   });
 
+  it("modèle et état : lus quand ils sont écrits, null (confiance « aucune ») sinon", () => {
+    const interne = reponseModele();
+    interne.donnees_extraites.annonce.modele = "Speedy 30";
+    interne.donnees_extraites.confiance.annonce.modele = "haute";
+    const api = versReponseApi(interne);
+    expect(api.donnees_extraites.annonce.modele).toBe("Speedy 30");
+    expect(api.donnees_extraites.annonce.etat).toBe("");
+    expect(api.donnees_extraites.confiance.annonce.etat).toBe("aucune");
+    const retour = depuisReponseApi(api).donnees_extraites;
+    expect(retour.annonce.modele).toBe("Speedy 30");
+    expect(retour.confiance.annonce.modele).toBe("haute");
+    expect(retour.annonce.etat).toBeNull();
+    expect(retour.confiance.annonce.etat).toBeNull();
+  });
+
   it("« aucune » redevient null, valeur neutre comprise : 0 avis lu n'est pas un nombre d'avis inconnu", () => {
     const interne = reponseModele();
     interne.donnees_extraites.vendeur.nombre_avis = 0;

@@ -23,6 +23,10 @@ export function creerStockageUpstash(redis: Redis): Stockage {
       const n = Number(v);
       return Number.isFinite(n) ? n : null;
     },
+    async lireTexte(cle) {
+      const v = await redis.get<string | number>(cle);
+      return v === null || v === undefined ? null : String(v);
+    },
     async poser(cle, valeur, ttlS) {
       await redis.set(cle, valeur, { ex: ttlS });
     },

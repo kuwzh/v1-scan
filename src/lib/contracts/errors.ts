@@ -10,6 +10,7 @@ export const CODES_ERREUR = [
   "analyse_impossible",
   "lien_non_recuperable",
   "vote_impossible",
+  "comparaison_impossible",
   "erreur_interne",
 ] as const;
 export const CodeErreurSchema = z.enum(CODES_ERREUR);

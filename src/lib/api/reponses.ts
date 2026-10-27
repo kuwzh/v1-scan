@@ -11,6 +11,7 @@ export const STATUT_PAR_CODE: Record<CodeErreur, number> = {
   analyse_impossible: 422,
   lien_non_recuperable: 422,
   vote_impossible: 409,
+  comparaison_impossible: 409,
   erreur_interne: 500,
 };
 

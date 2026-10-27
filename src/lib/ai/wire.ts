@@ -25,7 +25,9 @@ export const ReponseModeleSchema = z.object({
       titre: z.string().nullable(),
       prix_eur: z.number().nullable(),
       marque: z.string().nullable(),
+      modele: z.string().nullable(),
       categorie: z.string().nullable(),
+      etat: z.string().nullable(),
       description: z.string().nullable(),
       nombre_photos: z.number().nullable(),
     }),
@@ -46,7 +48,9 @@ export const ReponseModeleSchema = z.object({
         titre: confianceNulle,
         prix_eur: confianceNulle,
         marque: confianceNulle,
+        modele: confianceNulle,
         categorie: confianceNulle,
+        etat: confianceNulle,
         description: confianceNulle,
         nombre_photos: confianceNulle,
       }),
@@ -110,7 +114,11 @@ export const ReponseApiSchema = z.object({
       titre: z.string().describe(`Titre de l'annonce. ${ABSENT_TEXTE}`),
       prix_eur: z.number().describe(`Prix demandé en euros (nombre décimal). ${ABSENT_NOMBRE}`),
       marque: z.string().describe(`Marque indiquée. ${ABSENT_TEXTE}`),
+      modele: z
+        .string()
+        .describe(`Modèle précis de l'article, tel qu'écrit (« Speedy 30 »). ${ABSENT_TEXTE}`),
       categorie: z.string().describe(`Type d'article en quelques mots. ${ABSENT_TEXTE}`),
+      etat: z.string().describe(`État annoncé, tel qu'écrit (« très bon état »). ${ABSENT_TEXTE}`),
       description: z.string().describe(`Description de l'annonce. ${ABSENT_TEXTE}`),
       nombre_photos: z
         .number()
@@ -161,7 +169,9 @@ export const ReponseApiSchema = z.object({
         titre: confiance,
         prix_eur: confiance,
         marque: confiance,
+        modele: confiance,
         categorie: confiance,
+        etat: confiance,
         description: confiance,
         nombre_photos: confiance,
       }),
@@ -222,7 +232,9 @@ export function depuisReponseApi(api: ReponseApi): ReponseModele {
   const titre = champ(a.titre, ca.titre);
   const prix = champ(a.prix_eur, ca.prix_eur);
   const marque = champ(a.marque, ca.marque);
+  const modele = champ(a.modele, ca.modele);
   const categorie = champ(a.categorie, ca.categorie);
+  const etat = champ(a.etat, ca.etat);
   const description = champ(a.description, ca.description);
   const photos = champ(a.nombre_photos, ca.nombre_photos);
   const anciennete = champ(v.anciennete_jours, cv.anciennete_jours);
@@ -241,7 +253,9 @@ export function depuisReponseApi(api: ReponseApi): ReponseModele {
         titre: titre.valeur,
         prix_eur: prix.valeur,
         marque: marque.valeur,
+        modele: modele.valeur,
         categorie: categorie.valeur,
+        etat: etat.valeur,
         description: description.valeur,
         nombre_photos: photos.valeur,
       },
@@ -260,7 +274,9 @@ export function depuisReponseApi(api: ReponseApi): ReponseModele {
           titre: titre.confiance,
           prix_eur: prix.confiance,
           marque: marque.confiance,
+          modele: modele.confiance,
           categorie: categorie.confiance,
+          etat: etat.confiance,
           description: description.confiance,
           nombre_photos: photos.confiance,
         },

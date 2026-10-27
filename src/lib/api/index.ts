@@ -1,4 +1,5 @@
 export { traiterAnalyse } from "./analyze";
+export { traiterPrix } from "./prix";
 export { creerDiagnostic } from "./diagnostic";
 export { compterAnalyse, creerLecteurCompteur, traiterStats } from "./compteur";
 export type { LecteurCompteur } from "./compteur";

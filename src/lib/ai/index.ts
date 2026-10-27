@@ -9,7 +9,15 @@ export { EFFORTS, MODELE_PAR_DEFAUT, lireConfigIa } from "./config";
 export type { ConfigIa, Effort } from "./config";
 export { donneesVides, normaliserReponse } from "./normaliser";
 export { PROMPT_SYSTEME, construireMessageUtilisateur, echapperBalises } from "./prompt";
-export { TARIFS_MODELES, estimerCout, estimerCoutMaximal } from "./tarifs";
+export {
+  PRIX_RECHERCHE_WEB_USD,
+  TARIFS_MODELES,
+  estimerCout,
+  estimerCoutMaximal,
+  estimerCoutRecherche,
+  estimerCoutRechercheMaximal,
+} from "./tarifs";
+export type { UsageRecherche } from "./tarifs";
 export type {
   AvertissementsIa,
   EntreeIa,

@@ -5,6 +5,8 @@ import type { AnalysisResult } from "../contracts/result";
 import { donneesVides } from "../ai/normaliser";
 import type { AvertissementsIa, EvaluerIa, ImageEntree, RaisonEchecIa, UsageIa } from "../ai/types";
 import { analyserLien, analyserLiens } from "../links/analyse";
+import { contexteScoreDepuis } from "../prix/produit";
+import type { ContexteScore } from "../prix/recalcul";
 import { plateformeDeLien, type PlateformeAnnonce } from "../links/plateforme";
 import type { LienAnalyse } from "../links/types";
 import { collecterLiensBruts } from "../rules/contexte";
@@ -52,6 +54,8 @@ export type ResultatDemande =
       ignorees: string[];
       /** Le champ lien contenait l'annonce d'un site connu : son contenu n'a pas été lu. */
       lienAnnonce: PlateformeAnnonce | null;
+      /** De quoi ajouter plus tard un signal de prix au score sans refaire l'analyse. */
+      contexteScore: ContexteScore;
     }
   | {
       ok: false;
@@ -151,5 +155,17 @@ export async function analyserDemande(
 
   const regles = evaluerRegles({ donnees, texte: texteBrut, liens, site: demande.site ?? null });
   const resultat = assemblerResultat({ donnees, regles, ia: evaluation });
-  return { ok: true, resultat, ia: suivi, liens, ignorees: regles.ignorees, lienAnnonce };
+  return {
+    ok: true,
+    resultat,
+    ia: suivi,
+    liens,
+    ignorees: regles.ignorees,
+    lienAnnonce,
+    contexteScore: contexteScoreDepuis(
+      regles,
+      evaluation ? evaluation.score : null,
+      resultat.score,
+    ),
+  };
 }

@@ -109,6 +109,58 @@ describe("valeurs : jamais corrigées, seulement écartées", () => {
   });
 });
 
+describe("modèle et état de l'article (comparaison de prix)", () => {
+  it("garde le modèle et l'état lus, avec leur confiance", () => {
+    const { evaluation } = normaliser(
+      reponse((d) => {
+        d.annonce.marque = "Apple";
+        d.annonce.modele = " iPhone 13 128 Go ";
+        d.annonce.etat = "Bon état";
+        d.confiance.annonce.marque = "haute";
+        d.confiance.annonce.modele = "haute";
+        d.confiance.annonce.etat = "moyenne";
+      }),
+    );
+    const d = evaluation.donnees_extraites;
+    expect(d.annonce.modele).toBe("iPhone 13 128 Go");
+    expect(d.annonce.etat).toBe("Bon état");
+    expect(d.confiance.annonce.modele).toBe("haute");
+    expect(d.confiance.annonce.etat).toBe("moyenne");
+  });
+
+  it("modèle ou état absents : null, sans confiance", () => {
+    const { evaluation } = normaliser(reponseModele());
+    const d = evaluation.donnees_extraites;
+    expect(d.annonce.modele).toBeNull();
+    expect(d.annonce.etat).toBeNull();
+    expect(d.confiance.annonce.modele).toBeNull();
+    expect(d.confiance.annonce.etat).toBeNull();
+  });
+
+  it("un modèle lu sans confiance reçoit la confiance « basse » : la comparaison ne se déclenche pas", () => {
+    const { evaluation } = normaliser(
+      reponse((d) => {
+        d.annonce.modele = "Speedy 30";
+        d.confiance.annonce.modele = null;
+      }),
+    );
+    expect(evaluation.donnees_extraites.confiance.annonce.modele).toBe("basse");
+  });
+
+  it("borne la longueur du modèle (120) et de l'état (80)", () => {
+    const { evaluation } = normaliser(
+      reponse((d) => {
+        d.annonce.modele = "m".repeat(400);
+        d.annonce.etat = "e".repeat(400);
+        d.confiance.annonce.modele = "haute";
+        d.confiance.annonce.etat = "haute";
+      }),
+    );
+    expect(evaluation.donnees_extraites.annonce.modele).toHaveLength(120);
+    expect(evaluation.donnees_extraites.annonce.etat).toHaveLength(80);
+  });
+});
+
 describe("confiance", () => {
   it("une donnée présente sans confiance reçoit « basse » : les règles l'ignoreront", () => {
     const { evaluation } = normaliser(

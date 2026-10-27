@@ -54,3 +54,38 @@ export function estimerCoutMaximal(
     Math.ceil(entree.caracteresTexte / CARACTERES_PAR_JETON_MIN);
   return (jetonsEntree * tarif.entree + entree.maxTokens * tarif.sortie) / 1_000_000;
 }
+
+/** Tarif publié de l'outil de recherche web : 10 $ les 1 000 recherches, en plus des jetons. */
+export const PRIX_RECHERCHE_WEB_USD = 0.01;
+
+/**
+ * Les résultats d'une recherche sont comptés en jetons d'entrée, à chaque tour de la boucle
+ * serveur : une borne haute pour réserver le plafond de dépense avant l'appel.
+ */
+const JETONS_ENTREE_RECHERCHE_MAX = 60_000;
+
+export interface UsageRecherche extends UsageIa {
+  /** `usage.server_tool_use.web_search_requests`, cumulé sur tous les tours. */
+  recherchesWeb: number;
+}
+
+/** Coût réel d'une estimation de prix : jetons plus recherches facturées. `null` si le modèle est inconnu. */
+export function estimerCoutRecherche(modele: string, usage: UsageRecherche): number | null {
+  const jetons = estimerCout(modele, usage);
+  return jetons === null ? null : jetons + usage.recherchesWeb * PRIX_RECHERCHE_WEB_USD;
+}
+
+/** Coût maximal d'une estimation : toutes les recherches permises, un contexte plein, une réponse maximale. */
+export function estimerCoutRechercheMaximal(
+  modele: string,
+  entree: { maxRecherches: number; maxTokens: number },
+): number {
+  const tarifs = Object.values(TARIFS_MODELES);
+  const tarif =
+    TARIFS_MODELES[modele] ??
+    tarifs.reduce((a, b) => (b.sortie + b.entree > a.sortie + a.entree ? b : a));
+  return (
+    entree.maxRecherches * PRIX_RECHERCHE_WEB_USD +
+    (JETONS_ENTREE_RECHERCHE_MAX * tarif.entree + entree.maxTokens * tarif.sortie) / 1_000_000
+  );
+}

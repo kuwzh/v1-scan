@@ -34,8 +34,12 @@ export const AnnonceSchema = z.object({
   titre: texteOuNull,
   prix_eur: z.number().nonnegative().nullable(),
   marque: texteOuNull,
+  /** Modèle précis de l'article (« Speedy 30 », « iPhone 13 128 Go »…), tel qu'écrit. */
+  modele: texteOuNull,
   /** Type d'article en quelques mots (« sac à main », « smartphone »…). */
   categorie: texteOuNull,
+  /** État annoncé (« neuf avec étiquette », « très bon état », « pour pièces »…), tel qu'écrit. */
+  etat: texteOuNull,
   description: texteOuNull,
   nombre_photos: entierOuNull,
 });
@@ -68,7 +72,9 @@ export const ConfianceAnnonceSchema = z.object({
   titre: confianceOuNull,
   prix_eur: confianceOuNull,
   marque: confianceOuNull,
+  modele: confianceOuNull,
   categorie: confianceOuNull,
+  etat: confianceOuNull,
   description: confianceOuNull,
   nombre_photos: confianceOuNull,
 });
@@ -108,7 +114,9 @@ export function donneesExtraitesVides(): ExtractedData {
       titre: null,
       prix_eur: null,
       marque: null,
+      modele: null,
       categorie: null,
+      etat: null,
       description: null,
       nombre_photos: null,
     },
@@ -127,7 +135,9 @@ export function donneesExtraitesVides(): ExtractedData {
         titre: null,
         prix_eur: null,
         marque: null,
+        modele: null,
         categorie: null,
+        etat: null,
         description: null,
         nombre_photos: null,
       },

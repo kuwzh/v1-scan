@@ -3,14 +3,18 @@ import { z } from "zod";
 import {
   AiEvaluationSchema,
   AnalysisResultSchema,
+  AnalyzeResponseSchema,
   AnalyzeTextInputSchema,
   ApiErrorSchema,
   CODES_ERREUR,
+  EstimationPrixSchema,
   ExtractedDataSchema,
   FeedbackInputSchema,
   GRAVITES,
   GRAVITES_IA,
   MAX_TEXT_CHARS,
+  PrixInputSchema,
+  PrixResponseSchema,
   SignalSchema,
   aUneEntree,
   donneesExtraitesVides,
@@ -32,7 +36,9 @@ function evaluationValide(): AiEvaluation {
         titre: "Sac à main",
         prix_eur: 45,
         marque: "Louis Vuitton",
+        modele: "Speedy 30",
         categorie: "sac à main",
+        etat: "bon état",
         description: null,
         nombre_photos: 2,
       },
@@ -282,6 +288,121 @@ describe("tranche et niveau", () => {
     for (let score = 0; score <= 100; score++) {
       expect(niveauPourScore(trancheDeScore(score))).toBe(niveauPourScore(score));
     }
+  });
+});
+
+describe("PrixInputSchema et PrixResponseSchema", () => {
+  const estimation = {
+    article: "Louis Vuitton Speedy 30",
+    prix_neuf_eur: 1_800,
+    occasion_min_eur: 700,
+    occasion_max_eur: 1_100,
+    confiance: "haute" as const,
+    sources: [{ url: "https://fr.louisvuitton.com/p", titre: "Speedy 30" }],
+    remarque: null,
+  };
+  const reponse = {
+    statut: "ok" as const,
+    estimation,
+    comparaison: {
+      prix_annonce_eur: 250,
+      occasion_habituelle_eur: 900,
+      ecart_pct: -72,
+      part_du_bas_pct: 36,
+      fiable: true,
+    },
+    signal: {
+      id: "prix.web",
+      label: "Le prix est inférieur à la fourchette estimée.",
+      gravite: "importante" as const,
+      source: "regle" as const,
+    },
+    resultat: { score: 41, niveau: "moyen" as const, signaux_retires: [] },
+    depuis_cache: false,
+  };
+
+  it("la demande ne contient que l'identifiant d'une analyse", () => {
+    const id = "6f1f3a52-3c1b-4a56-9d5e-0b2c7d9f1a10";
+    expect(PrixInputSchema.parse({ analyse_id: id, prix: 5, marque: "x" })).toEqual({
+      analyse_id: id,
+    });
+    expect(PrixInputSchema.safeParse({ analyse_id: "abc" }).success).toBe(false);
+    expect(PrixInputSchema.safeParse({}).success).toBe(false);
+  });
+
+  it("accepte une réponse complète, et une réponse « introuvable » sans estimation", () => {
+    expect(PrixResponseSchema.safeParse(reponse).success).toBe(true);
+    expect(
+      PrixResponseSchema.safeParse({
+        ...reponse,
+        statut: "introuvable",
+        estimation: null,
+        comparaison: null,
+        signal: null,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("une source doit être une adresse valide ; au plus 6 sources", () => {
+    const source = { url: "https://exemple.fr/p", titre: "t" };
+    expect(
+      EstimationPrixSchema.safeParse({
+        ...estimation,
+        sources: [{ url: "pas une url", titre: "t" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      EstimationPrixSchema.safeParse({ ...estimation, sources: Array(7).fill(source) }).success,
+    ).toBe(false);
+  });
+
+  it("refuse un prix d'estimation nul ou négatif (inconnu = null)", () => {
+    expect(EstimationPrixSchema.safeParse({ ...estimation, prix_neuf_eur: 0 }).success).toBe(false);
+    expect(EstimationPrixSchema.safeParse({ ...estimation, occasion_min_eur: -3 }).success).toBe(
+      false,
+    );
+  });
+
+  it("le signal de prix peut être « importante » ou « attention » ; le contrat ne l'interdit pas mais le serveur ne l'émet jamais critique", () => {
+    expect(
+      PrixResponseSchema.safeParse({
+        ...reponse,
+        signal: { ...reponse.signal, gravite: "attention" },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuse un score hors de 0–100 ou un niveau inconnu", () => {
+    expect(
+      PrixResponseSchema.safeParse({ ...reponse, resultat: { ...reponse.resultat, score: 101 } })
+        .success,
+    ).toBe(false);
+    expect(
+      PrixResponseSchema.safeParse({ ...reponse, resultat: { ...reponse.resultat, niveau: "x" } })
+        .success,
+    ).toBe(false);
+  });
+
+  it("la réponse d'analyse annonce si la comparaison est disponible", () => {
+    const analyse = {
+      analyse_id: "6f1f3a52-3c1b-4a56-9d5e-0b2c7d9f1a10",
+      resultat: {
+        score: 10,
+        niveau: "faible",
+        signaux: [],
+        rassurants: [],
+        conseils: [],
+        donnees_extraites: donneesExtraitesVides(),
+        meta: { mode: "complet", score_regles: 10, score_ia: 10, plancher: null },
+      },
+      partielle: null,
+      avis: [],
+    };
+    expect(AnalyzeResponseSchema.safeParse(analyse).success).toBe(false);
+    expect(
+      AnalyzeResponseSchema.safeParse({ ...analyse, comparaison_prix: { disponible: true } })
+        .success,
+    ).toBe(true);
   });
 });
 

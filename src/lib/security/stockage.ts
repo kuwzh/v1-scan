@@ -13,6 +13,8 @@ export interface Stockage {
    */
   incrementer(cle: string, delta: number, ttlS?: number): Promise<number>;
   lire(cle: string): Promise<number | null>;
+  /** Lit une valeur écrite par `poser`, sans la supprimer. */
+  lireTexte(cle: string): Promise<string | null>;
   /** Écrit une valeur qui disparaît d'elle-même après `ttlS` secondes. */
   poser(cle: string, valeur: string, ttlS: number): Promise<void>;
   /**
@@ -63,6 +65,10 @@ export class StockageMemoire implements Stockage {
     if (!e) return null;
     const n = Number(e.valeur);
     return Number.isFinite(n) ? n : null;
+  }
+
+  async lireTexte(cle: string): Promise<string | null> {
+    return this.entree(cle)?.valeur ?? null;
   }
 
   async poser(cle: string, valeur: string, ttlS: number): Promise<void> {

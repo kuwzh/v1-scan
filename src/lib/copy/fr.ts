@@ -12,6 +12,15 @@ function formaterPrix(prix: number): string {
   return `${entier ? String(prix) : prix.toFixed(2).replace(".", ",")} €`;
 }
 
+/** 1800 → « 1 800 € » (espace insécable), 45 → « 45 € », 12,5 → « 12,50 € ». */
+function formaterMontant(prix: number): string {
+  const [entier = "0", decimales] = (Number.isInteger(prix) ? String(prix) : prix.toFixed(2)).split(
+    ".",
+  );
+  const groupes = entier.replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+  return `${decimales ? `${groupes},${decimales}` : groupes}\u00a0€`;
+}
+
 /** « colis », « paiement » (3 mots au plus). */
 function listerMots(mots: readonly string[]): string {
   return mots
@@ -289,6 +298,12 @@ export const fr = {
     liens: {
       externe: "Un lien vers un site externe est partagé. Vérifie son adresse avant de cliquer.",
     },
+    /** Signaux tirés de la comparaison à une estimation de prix en ligne (voir `fr.prix`). */
+    prixWeb: {
+      tresBas:
+        "Le prix demandé est très inférieur à ce qu'on voit d'habitude en occasion pour cet article : moins de 40 % du bas de la fourchette estimée.",
+      bas: "Le prix demandé est nettement inférieur à ce qu'on voit d'habitude en occasion pour cet article : entre 40 et 60 % du bas de la fourchette estimée.",
+    },
     prix: {
       tresBas: (prix: number, marque: string) =>
         `Le prix de ${formaterPrix(prix)} est très inférieur à ce qu'on voit d'habitude pour un article ${marque}.`,
@@ -345,8 +360,48 @@ export const fr = {
       "On n'a pas pu récupérer cette annonce. Envoie plutôt une capture de l'annonce.",
     vote_impossible:
       "Ce vote n'a pas pu être enregistré : il a déjà été donné, ou ce résultat est trop ancien.",
+    comparaison_impossible:
+      "La comparaison de prix n'est plus possible pour ce résultat (trop ancien, ou article non identifié avec assez de certitude). Relance une vérification.",
     erreur_interne: "Quelque chose s'est mal passé de notre côté. Réessaie dans un instant.",
   } satisfies Record<CodeErreur, string>,
+
+  /**
+   * Comparaison de prix. Ce sont des estimations, tirées d'une recherche en ligne : le wording
+   * reste prudent (« estimé », « habituel »), et un prix bas n'est jamais présenté comme une preuve.
+   */
+  prix: {
+    titre: "Prix",
+    bouton: "Comparer le prix",
+    aide: "On compare ce prix à ceux du neuf et de l'occasion, grâce à une recherche en ligne (une dizaine de secondes).",
+    enCours: "Recherche des prix en cours…",
+    estimation: "Estimation",
+    neuf: (prix: number) => `Prix neuf estimé ~${formaterMontant(prix)}`,
+    occasion: (min: number, max: number) =>
+      `Occasion habituelle ~${formaterMontant(min).replace("\u00a0€", "")}–${formaterMontant(max)}`,
+    ecart: (pourcentage: number, prixAnnonce: number) =>
+      pourcentage < 0
+        ? `Cette annonce (${formaterMontant(prixAnnonce)}) est à −${Math.abs(pourcentage)} % du prix d'occasion habituel`
+        : pourcentage === 0
+          ? `Cette annonce (${formaterMontant(prixAnnonce)}) est au prix d'occasion habituel`
+          : `Cette annonce (${formaterMontant(prixAnnonce)}) est à +${pourcentage} % du prix d'occasion habituel`,
+    article: (nom: string) => `Article retenu : ${nom}`,
+    mention:
+      "Estimation tirée de recherches en ligne : un ordre de grandeur, pas un prix garanti. Un prix bas peut aussi venir d'un article abîmé, incomplet ou mal identifié.",
+    sources: "Sources consultées",
+    introuvable:
+      "On n'a pas trouvé assez de prix comparables pour cet article : aucune comparaison possible.",
+    peuFiable:
+      "Estimation peu sûre : elle ne modifie pas le score. Vérifie le prix toi-même avant de t'y fier.",
+    confiance: {
+      haute: "Estimation assez sûre",
+      moyenne: "Estimation à prendre avec prudence",
+      basse: "Estimation peu sûre",
+    },
+    scoreMisAJour: "Le score a été mis à jour avec ce prix.",
+    ancienSignal: "Remplace l'estimation approximative faite à partir de la marque seule.",
+    depuisCache: "Estimation récente, déjà calculée pour cet article.",
+    erreur: "La comparaison de prix n'a pas abouti",
+  },
 
   /** Interface : écran de saisie, chargement, résultat. */
   ui: {
@@ -428,5 +483,10 @@ export const fr = {
     requeteTropVolumineuse:
       "Les captures envoyées sont trop volumineuses. Envoie-en moins ou en plus petit.",
     corpsIllisible: "On n'a pas pu lire ta demande. Réessaie en renvoyant les captures.",
+    prixAffluence:
+      "Forte affluence : la comparaison de prix est suspendue pour le moment. Réessaie plus tard.",
+    prixIndisponible: "La comparaison de prix n'est pas disponible pour le moment.",
+    prixTropDeRecherches:
+      "Tu as comparé beaucoup de prix en peu de temps. Réessaie dans quelques minutes.",
   },
 } as const;

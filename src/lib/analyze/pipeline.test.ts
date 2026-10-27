@@ -251,7 +251,9 @@ describe("analyserDemande : échecs de l'IA", () => {
       titre: null,
       prix_eur: null,
       marque: null,
+      modele: null,
       categorie: null,
+      etat: null,
       description: null,
       nombre_photos: null,
     };
@@ -337,6 +339,32 @@ describe("analyserDemande : résultat", () => {
     expect(AnalysisResultSchema.safeParse(r.resultat).success).toBe(true);
     expect(r.ia).toMatchObject({ statut: "ok", modele: "claude-haiku-5-5" });
     expect(r.resultat.niveau).toBe("faible");
+  });
+
+  it("fournit de quoi ajouter plus tard le prix au score : poids des règles, plancher, remise, score IA", async () => {
+    const r = reponseModele({ score: 12 });
+    r.donnees_extraites.messages = [
+      { auteur: "vendeur", confiance: "haute", texte: "Écris-moi sur WhatsApp" },
+    ];
+    const res = await analyserDemande({ images: [image] }, deps(iaRepondant(r)));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const ctx = res.contexteScore;
+    expect(ctx.poids.length).toBeGreaterThan(0);
+    expect(ctx.poids.every((p) => p > 0 && p < 1)).toBe(true);
+    expect(ctx.scoreIa).toBe(12);
+    expect(ctx.score).toBe(res.resultat.score);
+    expect(ctx.prixTable).toBeNull();
+    // Aucun contenu : que des nombres et des identifiants.
+    expect(JSON.stringify(ctx)).not.toMatch(/WhatsApp/);
+  });
+
+  it("sans IA : pas de score IA dans le contexte", async () => {
+    const res = await analyserDemande(
+      { images: [], texte: "Vendeur : écris-moi sur WhatsApp" },
+      { evaluerIa: null },
+    );
+    expect(res.ok && res.contexteScore.scoreIa).toBeNull();
   });
 
   it("l'IA ne peut pas faire descendre un signal critique des règles sous son plancher", async () => {

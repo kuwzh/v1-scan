@@ -10,6 +10,12 @@ export const DUREE_ID_ANALYSE_S = 3_600;
 export const cleAnalyse = (id: string) => `analyse:${id}`;
 
 /**
+ * L'article de l'analyse et de quoi recalculer son score, gardés une heure pour le bouton
+ * « Comparer le prix » : nombres et données de produit, ni capture ni conversation.
+ */
+export const clePrixProduit = (id: string) => `produit:${id}`;
+
+/**
  * Agrégat du feedback : un compteur par (mode, niveau, tranche de score, vote). Sans durée de
  * vie. Le mode (complet / règles seules) est séparé car les deux n'ont pas la même distribution
  * de scores : les mélanger fausserait le calibrage des seuils.

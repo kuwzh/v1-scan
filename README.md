@@ -50,8 +50,9 @@ src/
                 typosquatting, raccourcisseurs, TLD à risque (aucune requête réseau)
     security/   config des garde-fous, stockage (Upstash / mémoire), IP hashée, rate limit,
                 plafond de dépense, validation des images, lecture bornée du corps
+    prix/       comparaison de prix : recherche web (Claude + `web_search`), seuils, cache, recalcul du score
     client/     logique du navigateur sans React : compression des captures, appels à l'API, état des écrans
-    api/        les handlers `traiterAnalyse`, `traiterFeedback`, `traiterStats` : Request → Response,
+    api/        les handlers `traiterAnalyse`, `traiterPrix`, `traiterFeedback`, `traiterStats` : Request → Response,
                 sans Next ; les routes de `src/app/api/v1/` ne font que les appeler
 ```
 
@@ -67,6 +68,7 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [x] 4. Client IA (extraction + évaluation, JSON structuré) et script d'évaluation
 - [x] 5. Route `/api/v1/analyze`, rate limit, plafond de dépense, compteur d'analyses, route de feedback
 - [x] 6. UI mobile : upload, loader, écran résultat, feedback 👍👎 anonyme
+- [x] Comparaison de prix à la demande (recherche web, cache 24 h, signal « importante » / « attention » ; voir plus bas)
 - [ ] 7. Carte de partage 9:16
 - [ ] 8. PWA et Web Share Target (Android)
 - [ ] 9. Page Confidentialité, landing avec compteur « X annonces vérifiées »
@@ -75,12 +77,13 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 
 ## API
 
-| Route                   | Rôle                                                                                                                                                                                                                                                                                     |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/v1/analyze`  | `multipart/form-data` : `images` (≤ 3), `texte`, `lien`, `site` (`vinted`, `leboncoin`, `facebook_marketplace`, `autre`). Renvoie `{ analyse_id, resultat, partielle, avis }`.                                                                                                           |
-| `POST /api/v1/feedback` | JSON `{ analyse_id, vote: "up" \| "down" }`. Un vote par analyse.                                                                                                                                                                                                                        |
-| `GET /api/v1/health`    | État de la configuration, sans aucune valeur secrète : `anthropic`, `upstash` (`absent` / `present` / `joignable`), `ip_secret`, `ia_active`, `modele`, plus `manque` (les variables à définir), `raison_inactive`, `environnement`, `plafond_usd` et `depense_du_jour_usd`. Gardé 30 s. |
-| `GET /api/v1/stats`     | `{ analyses }` : le compteur public, mis en cache (CDN et mémoire).                                                                                                                                                                                                                      |
+| Route                   | Rôle                                                                                                                                                                                                                                                                                                      |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/analyze`  | `multipart/form-data` : `images` (≤ 3), `texte`, `lien`, `site` (`vinted`, `leboncoin`, `facebook_marketplace`, `autre`). Renvoie `{ analyse_id, resultat, partielle, avis, comparaison_prix }`.                                                                                                          |
+| `POST /api/v1/prix`     | JSON `{ analyse_id }`. Compare le prix de l'annonce à ceux du neuf et de l'occasion (recherche web) ; renvoie `{ statut, estimation, comparaison, signal, resultat: { score, niveau, signaux_retires }, depuis_cache }`. Proposé seulement si `comparaison_prix.disponible` dans la réponse de `analyze`. |
+| `POST /api/v1/feedback` | JSON `{ analyse_id, vote: "up" \| "down" }`. Un vote par analyse.                                                                                                                                                                                                                                         |
+| `GET /api/v1/health`    | État de la configuration, sans aucune valeur secrète : `anthropic`, `upstash` (`absent` / `present` / `joignable`), `ip_secret`, `ia_active`, `modele`, plus `manque` (les variables à définir), `raison_inactive`, `environnement`, `plafond_usd` et `depense_du_jour_usd`. Gardé 30 s.                  |
+| `GET /api/v1/stats`     | `{ analyses }` : le compteur public, mis en cache (CDN et mémoire).                                                                                                                                                                                                                                       |
 
 Les erreurs ont toujours la forme `{ erreur: { code, message } }` (codes dans `src/lib/contracts/errors.ts`).
 
@@ -99,6 +102,12 @@ Valeurs de départ, toutes réglables dans l'environnement (voir `.env.example`)
   erreur d'estimation. Au-delà, l'IA est coupée : un texte reçoit une analyse « règles seules »
   accompagnée du message « Forte affluence, analyse partielle » ; des captures seules (illisibles sans
   IA) reçoivent l'erreur `plafond_atteint`, qui invite à coller le texte de la conversation.
+- **Comparaison de prix** : une recherche web coûte 0,01 $ pièce, plus les jetons (les résultats de
+  recherche sont lus en entrée). Elle compte dans le même plafond : le pire cas (3 recherches,
+  60 000 jetons en entrée, réponse maximale ≈ 0,04 $ sur Haiku) est réservé avant l'appel, puis
+  remplacé par le coût réel (recherches facturées + jetons). Limite propre aux recherches : 5 par
+  heure et 15 par jour et par IP (`PRICE_RATE_LIMIT_PER_HOUR`, `PRICE_RATE_LIMIT_PER_DAY`) ; une
+  estimation déjà en cache ne la consomme pas, et tous les appels restent bornés à 30/h et 100/j.
 - **Feedback** : chaque analyse renvoie un `analyse_id` aléatoire. Le serveur retient seulement la
   mode (complet ou règles seules) et la tranche de score (10 points) sous cet identifiant, pour une heure. Le premier vote le consomme de
   façon atomique ; les suivants sont refusés. Le client ne fournit jamais le score, donc il ne peut
@@ -196,7 +205,9 @@ Pour les commandes `curl`, lancer la preview avec un lien partageable, ou tester
       hors ligne contre les limites documentées d'Anthropic, puis fait deux appels réels (texte, puis
       une capture de `evals/images`) et affiche la transcription obtenue. En cas de refus, la ligne
       `détail` donne le type et le message exacts de l'API. `--hors-ligne` ne vérifie que le schéma,
-      sans clé ; `--sans-image`, `--model`, `--effort`, `--image` ajustent l'appel.
+      sans clé ; `--sans-image`, `--sans-prix`, `--model`, `--effort`, `--image` ajustent l'appel. Le
+      cas « prix » (outil `web_search`) coûte environ 0,02 à 0,04 $ : un iPhone 13, avec les sources
+      trouvées et un score simulé pour une annonce à 150 €.
 - [ ] `pnpm eval` (plan, sans appel) puis `pnpm eval --run` : aucune erreur `configuration` ni
       `reponse_invalide` (c'est la preuve que le schéma de sortie est accepté), faux positifs sur les
       conversations saines, taux d'invention et calibration de la confiance.
@@ -208,8 +219,59 @@ Pour les commandes `curl`, lancer la preview avec un lien partageable, ou tester
       `depense:<date>` a augmenté d'un montant cohérent (valeur en millionièmes de dollar).
 - [ ] Tester le plafond avec `DAILY_SPEND_CAP_USD=0.01` : après quelques analyses, le message « Forte
       affluence, analyse partielle » apparaît pour un texte et `plafond_atteint` pour une capture seule.
+- [ ] Comparaison de prix : dans l'app, analyser une capture d'article identifiable (marque ET modèle
+      lisibles), cliquer « Comparer le prix » ; vérifier la carte (chiffres plausibles, sources qui
+      s'ouvrent), le score mis à jour, la clé `depense:<date>` (≈ 0,02 à 0,04 $ de plus) et
+      `prix:<marque>:<modèle>:<état>` (TTL ≈ 86 400 s). Un second clic sur le même article dit
+      « estimation récente » et ne coûte rien. Vérifier aussi que l'outil de recherche web est
+      autorisé pour l'organisation Anthropic.
 - [ ] Si l'éval montre trop d'erreurs d'extraction, passer à `ANTHROPIC_MODEL=claude-sonnet-5-5`
       (sans changement de code) et relancer l'éval.
+
+## Comparaison de prix
+
+Sur l'écran résultat, un bouton « Comparer le prix » (jamais automatique : la recherche est le poste
+de dépense le plus cher) affiche une carte « Prix » : _prix neuf estimé ~X €, occasion habituelle
+~Y–Z €, cette annonce est à −N % du prix d'occasion habituel_, avec les sources cliquables et la
+mention « estimation ».
+
+- **Quand le bouton apparaît** : marque ET modèle lus avec une confiance **haute**, et un prix lu avec
+  une confiance au moins moyenne (`produitComparable`, `src/lib/prix/produit.ts`), analyse « complète »,
+  et recherche possible (clé d'API, plafond, stockage partagé). Sinon seule la table de prix par marque
+  (`src/lib/rules/prix.ts`) joue, comme avant.
+- **Estimation** (`src/lib/prix/estimer.ts`) : un appel Claude avec l'outil `web_search_20250305`
+  (`max_uses` 3, localisé en France). Le modèle ne reçoit **jamais le prix de l'annonce** : il estime
+  le marché sans s'y ancrer, la comparaison se fait côté serveur. Il écrit un JSON
+  `{ article_identifie, prix_neuf_eur, occasion_min_eur, occasion_max_eur, confiance, sources, remarque }`,
+  validé avec zod. **Les sorties structurées ne sont pas combinées avec `web_search`** (les citations de
+  l'outil y sont incompatibles) : si le JSON est illisible, un second appel sans outil le reconvertit
+  avec le schéma garanti (un millième de dollar) plutôt que de perdre la recherche. Une longue recherche
+  mise en pause (`pause_turn`) est reprise, deux fois au plus, dans un délai total de 50 s
+  (`PRICE_TIMEOUT_MS`).
+- **Anti-invention** : une source n'est gardée que si c'est une page https que la recherche a
+  réellement renvoyée ; sans aucune source vérifiée, ou avec une fourchette d'occasion bien au-dessus du
+  prix neuf, la confiance tombe à « basse », et une confiance basse n'a **aucun effet sur le score**
+  (les chiffres s'affichent avec « estimation peu sûre »). Le texte des pages web est traité comme une
+  donnée, jamais comme une consigne.
+- **Règle** : prix de l'annonce **< 40 %** du bas de la fourchette d'occasion → signal `prix.web`
+  « importante » (poids 0,38) ; **de 40 à 60 %** (bornes comprises) → « attention » (poids 0,22) ;
+  au-delà, rien. **Jamais « critique »** : un prix bas peut venir d'un article abîmé, incomplet ou mal
+  identifié, et seul un signal critique impose un plancher au score.
+- **Intégration au score** : l'analyse garde une heure (`produit:<analyse_id>`) l'article, le prix et les
+  poids des signaux des règles. La comparaison recalcule le score avec les mêmes formules (cumul des
+  poids, fusion avec l'IA, remise, plancher) sans relancer l'analyse. Le signal remplace celui de la
+  table de prix (`prix.tres_bas` / `prix.bas`) s'il est au moins aussi grave ; sinon la table reste (on
+  ne baisse pas le risque sur la foi d'une estimation) et rien n'est compté deux fois.
+- **Cache** : par (marque, modèle, état) pendant 24 h (`PRICE_CACHE_TTL_S`), clé `prix:<marque>:<modèle>:<état>`
+  dans Upstash ; un « introuvable » ou une estimation de confiance basse est gardé 2 h au plus. Le cache ne contient que l'estimation : ni le
+  prix de l'annonce, ni rien de la conversation.
+
+**Pas encore couvert** : le prix d'une annonce lue à partir d'un lien (étape 10, pas encore faite) ; seuls
+les articles lus sur une capture ou un texte collé sont comparés.
+
+**À vérifier avec une vraie clé** (rien de cela n'a pu l'être sans identifiants) : `pnpm check:anthropic`
+fait un cas réel (iPhone 13 128 Go, bon état), affiche les sources, les jetons, les recherches
+facturées et le coût. Il dira si Haiku 5.5 accepte `web_search_20250305` ; sinon, `ANTHROPIC_PRICE_MODEL=claude-sonnet-5-5`.
 
 ## Comment le score est calculé
 
@@ -274,6 +336,10 @@ Les seuils et poids sont des valeurs de départ, à calibrer avec les fixtures
 ## Vie privée
 
 Aucune capture n'est stockée : elles sont traitées en mémoire pendant la requête. Les seules données
-conservées sont des agrégats anonymes (compteur d'analyses, votes de feedback sous forme de score
+conservées sont, pour une heure, l'article d'une analyse comparable (marque, modèle, catégorie, état,
+prix, et des nombres pour recalculer le score : clé `produit:<uuid>`, sans conversation ni capture), pour
+24 h l'estimation de prix d'un article (clé `prix:…`, sans le prix de l'annonce), et des agrégats anonymes (compteur d'analyses, votes de feedback sous forme de score
 arrondi, niveau et vote, sans aucun contenu) et des compteurs de rate limiting sur une IP hashée à
-durée de vie courte. Les détails figureront sur la page Confidentialité.
+durée de vie courte. La recherche de prix envoie à l'API d'Anthropic la marque, le modèle, la catégorie
+et l'état de l'article (jamais le prix de l'annonce ni la conversation). Les détails figureront sur la
+page Confidentialité.

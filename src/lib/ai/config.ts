@@ -11,9 +11,14 @@ export interface ConfigIa {
   maxTokens: number;
 }
 
-const FORME_MODELE = /^claude-[a-z0-9][a-z0-9.-]{1,60}$/;
+export const FORME_MODELE = /^claude-[a-z0-9][a-z0-9.-]{1,60}$/;
 
-function entierBorne(brut: string | undefined, defaut: number, min: number, max: number): number {
+export function entierBorne(
+  brut: string | undefined,
+  defaut: number,
+  min: number,
+  max: number,
+): number {
   const n = Number(brut);
   return Number.isInteger(n) && n >= min && n <= max ? n : defaut;
 }

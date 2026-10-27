@@ -7,5 +7,6 @@ export * from "./feedback";
 export * from "./input";
 export * from "./limits";
 export * from "./niveau";
+export * from "./prix";
 export * from "./result";
 export * from "./signals";

@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AnalyzeResponse } from "@/lib/contracts/api";
+import type { PrixResponse } from "@/lib/contracts/prix";
 import type { Niveau } from "@/lib/contracts/niveau";
 import type { Gravite } from "@/lib/contracts/signals";
 import { fr } from "@/lib/copy/fr";
+import { appliquerPrix } from "@/lib/prix/appliquer";
+import { CartePrix } from "./CartePrix";
 import { Feedback } from "./Feedback";
 import { Jauge } from "./Jauge";
 
@@ -44,8 +47,11 @@ export function Resultat({
   reponse: AnalyzeResponse;
   onRecommencer: () => void;
 }) {
-  const { resultat, partielle } = reponse;
+  const { partielle } = reponse;
   const avis = reponse.avis ?? [];
+  // La comparaison de prix (à la demande) met à jour le score et les signaux affichés.
+  const [prix, setPrix] = useState<PrixResponse | null>(null);
+  const resultat = prix ? appliquerPrix(reponse.resultat, prix) : reponse.resultat;
   const titre = useRef<HTMLHeadingElement>(null);
   // Les lecteurs d'écran annoncent le résultat dès qu'il apparaît.
   useEffect(() => {
@@ -114,6 +120,10 @@ export function Resultat({
           </ul>
         )}
       </Section>
+
+      {reponse.comparaison_prix?.disponible && (
+        <CartePrix analyseId={reponse.analyse_id} prix={prix} onPrix={setPrix} />
+      )}
 
       {resultat.rassurants.length > 0 && (
         <Section titre={fr.sections.rassurants}>

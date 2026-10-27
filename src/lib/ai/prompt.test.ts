@@ -3,6 +3,16 @@ import { MAX_TEXT_CHARS } from "../contracts/limits";
 import { trouverFormulationsInterdites } from "../copy/wording";
 import { PROMPT_SYSTEME, construireMessageUtilisateur, echapperBalises } from "./prompt";
 
+describe("PROMPT_SYSTEME : modèle et état de l'article", () => {
+  const ligne = PROMPT_SYSTEME.split("\n").find((l) => l.startsWith("- modele :")) ?? "";
+
+  it("demande le modèle et l'état seulement s'ils sont écrits, sinon la confiance « aucune »", () => {
+    expect(ligne).toMatch(/modele/);
+    expect(ligne).toMatch(/etat/);
+    expect(ligne).toMatch(/confiance « aucune »/);
+  });
+});
+
 describe("PROMPT_SYSTEME : transcription exhaustive et verbatim des messages", () => {
   const ligneMessages = PROMPT_SYSTEME.split("\n").find((l) => l.startsWith("- messages :")) ?? "";
 

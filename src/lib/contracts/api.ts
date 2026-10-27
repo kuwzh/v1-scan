@@ -29,6 +29,8 @@ export const AnalyzeResponseSchema = z.object({
     })
     .nullable(),
   avis: z.array(AvisSchema),
+  /** La comparaison de prix est possible : marque, modèle et prix ont été lus avec une confiance haute. */
+  comparaison_prix: z.object({ disponible: z.boolean() }),
 });
 export type AnalyzeResponse = z.infer<typeof AnalyzeResponseSchema>;
 

@@ -18,6 +18,16 @@ describe("StockageMemoire", () => {
     expect(await stockage.lire("absente")).toBeNull();
   });
 
+  it("lireTexte lit sans supprimer, et rend null pour une clé absente ou expirée", async () => {
+    const { stockage, horloge } = memoire();
+    await stockage.poser("t", "valeur", 60);
+    expect(await stockage.lireTexte("t")).toBe("valeur");
+    expect(await stockage.lireTexte("t")).toBe("valeur");
+    expect(await stockage.lireTexte("absente")).toBeNull();
+    horloge.ms += 61_000;
+    expect(await stockage.lireTexte("t")).toBeNull();
+  });
+
   it("les clés expirent après leur durée de vie", async () => {
     const { stockage, horloge } = memoire();
     await stockage.incrementer("a", 1, 60);
@@ -84,6 +94,17 @@ describe("creerStockageUpstash", () => {
     const { appels, stockage } = faux();
     expect(await stockage.incrementer("k", 1, 120)).toBe(3);
     expect(appels).toEqual([["multi", ["incrby", "k", 1], ["expire", "k", 120]]]);
+  });
+
+  it("lireTexte : GET, en chaîne, et null quand la clé est absente", async () => {
+    const { appels, stockage } = faux();
+    expect(await stockage.lireTexte("k")).toBe("12");
+    expect(appels).toEqual([["get", "k"]]);
+    const vide = creerStockageUpstash({ get: async () => null } as unknown as Redis);
+    expect(await vide.lireTexte("k")).toBeNull();
+    // Lu comme du texte (désérialisation coupée dans `creerRedis`) : un nombre revient en chaîne.
+    const nombre = creerStockageUpstash({ get: async () => 5 } as unknown as Redis);
+    expect(await nombre.lireTexte("k")).toBe("5");
   });
 
   it("lit les nombres, écrit avec une durée de vie, et prend avec GETDEL", async () => {

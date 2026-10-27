@@ -106,6 +106,8 @@ export function normaliserReponse(
 
   donnees.annonce.titre = texteOuNull(brut.annonce.titre, 200);
   donnees.annonce.marque = texteOuNull(brut.annonce.marque, 80);
+  donnees.annonce.modele = texteOuNull(brut.annonce.modele, 120);
+  donnees.annonce.etat = texteOuNull(brut.annonce.etat, 80);
   donnees.annonce.categorie = texteOuNull(brut.annonce.categorie, 80);
   donnees.annonce.description = texteOuNull(brut.annonce.description, 4_000);
   donnees.vendeur.localisation = texteOuNull(brut.vendeur.localisation, 120);

@@ -15,9 +15,16 @@ export interface ClientIa {
 }
 
 /** Client réel : SDK officiel, un seul nouvel essai sur les erreurs transitoires. */
-export function creerClientAnthropic(config: Pick<ConfigIa, "apiKey" | "timeoutMs">): ClientIa {
+export function creerClientAnthropic(
+  config: Pick<ConfigIa, "apiKey" | "timeoutMs">,
+  options: { maxRetries?: number } = {},
+): ClientIa {
   if (!config.apiKey) throw new Error("ANTHROPIC_API_KEY manquante.");
-  const sdk = new Anthropic({ apiKey: config.apiKey, maxRetries: 1, timeout: config.timeoutMs });
+  const sdk = new Anthropic({
+    apiKey: config.apiKey,
+    maxRetries: options.maxRetries ?? 1,
+    timeout: config.timeoutMs,
+  });
   return { creer: (params, options) => sdk.messages.create(params, options) };
 }
 

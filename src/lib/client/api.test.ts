@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fr } from "../copy/fr";
-import { envoyerAnalyse, envoyerVote, formaterDelai } from "./api";
+import { comparerPrix, envoyerAnalyse, envoyerVote, formaterDelai } from "./api";
 
 const entree = { images: [new Blob([new Uint8Array(10)])], texte: "Bonjour", lien: "" };
 
@@ -247,5 +247,144 @@ describe("envoyerVote", () => {
       throw new TypeError("Failed to fetch");
     }) as unknown as typeof fetch;
     expect(await envoyerVote("abc", "up", { fetch: f })).toBe("echec");
+  });
+});
+
+describe("comparerPrix", () => {
+  const ID = "6f1f3a52-3c1b-4a56-9d5e-0b2c7d9f1a10";
+  const estimation = {
+    article: "Louis Vuitton Speedy 30",
+    prix_neuf_eur: 1_800,
+    occasion_min_eur: 700,
+    occasion_max_eur: 1_100,
+    confiance: "haute",
+    sources: [{ url: "https://fr.louisvuitton.com/p", titre: "Speedy 30" }],
+    remarque: null,
+  };
+  const reponsePrix = {
+    statut: "ok",
+    estimation,
+    comparaison: {
+      prix_annonce_eur: 250,
+      occasion_habituelle_eur: 900,
+      ecart_pct: -72,
+      part_du_bas_pct: 36,
+      fiable: true,
+    },
+    signal: { id: "prix.web", label: "Prix bas", gravite: "importante", source: "regle" },
+    resultat: { score: 41, niveau: "moyen", signaux_retires: [] },
+    depuis_cache: false,
+  };
+
+  it("envoie l'identifiant seul, en JSON, et rend la réponse", async () => {
+    const f = vi.fn(async () => json(reponsePrix));
+    const r = await comparerPrix(ID, { fetch: f as unknown as typeof fetch });
+    expect(r).toEqual({ ok: true, reponse: reponsePrix });
+    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/v1/prix");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ analyse_id: ID });
+  });
+
+  it("accepte « introuvable » sans estimation, comparaison ni signal", async () => {
+    const corps = {
+      ...reponsePrix,
+      statut: "introuvable",
+      estimation: null,
+      comparaison: null,
+      signal: null,
+    };
+    const r = await comparerPrix(ID, {
+      fetch: (async () => json(corps)) as unknown as typeof fetch,
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it.each([
+    ["statut inconnu", { ...reponsePrix, statut: "peut-être" }],
+    ["sans résultat", { ...reponsePrix, resultat: undefined }],
+    [
+      "niveau inconnu",
+      { ...reponsePrix, resultat: { ...reponsePrix.resultat, niveau: "critique" } },
+    ],
+    ["confiance inconnue", { ...reponsePrix, estimation: { ...estimation, confiance: "sûre" } }],
+    ["source mal formée", { ...reponsePrix, estimation: { ...estimation, sources: [{ url: 3 }] } }],
+    ["comparaison mal formée", { ...reponsePrix, comparaison: { ecart_pct: "beaucoup" } }],
+    ["gravité inconnue", { ...reponsePrix, signal: { ...reponsePrix.signal, gravite: "énorme" } }],
+    ["pas un objet", "texte"],
+  ])("réponse inattendue (%s) : erreur claire, pas de plantage", async (_nom, corps) => {
+    const r = await comparerPrix(ID, {
+      fetch: (async () => json(corps)) as unknown as typeof fetch,
+    });
+    expect(r).toMatchObject({ ok: false, erreur: { code: "reponse_inattendue" } });
+  });
+
+  it.each([
+    [409, "comparaison_impossible"],
+    [503, "plafond_atteint"],
+    [503, "ia_indisponible"],
+    [429, "trop_de_requetes"],
+  ])("HTTP %i (%s) : le message du serveur est affiché", async (statut, code) => {
+    const r = await comparerPrix(ID, {
+      fetch: (async () =>
+        json(erreurApi(code, "Message précis"), statut)) as unknown as typeof fetch,
+    });
+    expect(r).toMatchObject({ ok: false, erreur: { code } });
+    if (!r.ok && !r.annule && code !== "trop_de_requetes") {
+      expect(r.erreur.message).toBe("Message précis");
+    }
+  });
+
+  it("trop de requêtes : le délai de reprise est traduit", async () => {
+    const r = await comparerPrix(ID, {
+      fetch: (async () =>
+        json(erreurApi("trop_de_requetes"), 429, {
+          "retry-after": "700",
+        })) as unknown as typeof fetch,
+    });
+    expect(r).toMatchObject({
+      ok: false,
+      erreur: { code: "trop_de_requetes", message: fr.ui.erreur.limite("12 minutes") },
+    });
+  });
+
+  it("corps illisible : réponse inattendue", async () => {
+    const r = await comparerPrix(ID, {
+      fetch: (async () => new Response("<html>", { status: 502 })) as unknown as typeof fetch,
+    });
+    expect(r).toMatchObject({ ok: false, erreur: { code: "reponse_inattendue" } });
+  });
+
+  it("coupure réseau", async () => {
+    const r = await comparerPrix(ID, {
+      fetch: (async () => {
+        throw new TypeError("Failed to fetch");
+      }) as unknown as typeof fetch,
+    });
+    expect(r).toMatchObject({ ok: false, erreur: { code: "reseau" } });
+  });
+
+  it("délai dépassé", async () => {
+    const f = ((_u: string, init: RequestInit) =>
+      new Promise((_resolve, rejeter) => {
+        init.signal?.addEventListener("abort", () =>
+          rejeter(new DOMException("abort", "AbortError")),
+        );
+      })) as unknown as typeof fetch;
+    const r = await comparerPrix(ID, { fetch: f, delaiMs: 20 });
+    expect(r).toMatchObject({ ok: false, erreur: { code: "delai_depasse" } });
+  });
+
+  it("annulation par l'utilisateur : ni erreur ni résultat", async () => {
+    const controleur = new AbortController();
+    const f = ((_u: string, init: RequestInit) =>
+      new Promise((_resolve, rejeter) => {
+        init.signal?.addEventListener("abort", () =>
+          rejeter(new DOMException("abort", "AbortError")),
+        );
+      })) as unknown as typeof fetch;
+    const attente = comparerPrix(ID, { fetch: f, signal: controleur.signal });
+    controleur.abort();
+    expect(await attente).toEqual({ ok: false, annule: true });
   });
 });
