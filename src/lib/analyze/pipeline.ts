@@ -1,10 +1,11 @@
 import type { AiEvaluation } from "../contracts/ai";
-import { donneesExtraitesVides } from "../contracts/extracted";
+import { donneesExtraitesVides, type Plateforme } from "../contracts/extracted";
 import type { CodeErreur } from "../contracts/errors";
 import type { AnalysisResult } from "../contracts/result";
 import { donneesVides } from "../ai/normaliser";
 import type { AvertissementsIa, EvaluerIa, ImageEntree, RaisonEchecIa, UsageIa } from "../ai/types";
-import { analyserLiens } from "../links/analyse";
+import { analyserLien, analyserLiens } from "../links/analyse";
+import { plateformeDeLien, type PlateformeAnnonce } from "../links/plateforme";
 import type { LienAnalyse } from "../links/types";
 import { collecterLiensBruts } from "../rules/contexte";
 import { evaluerRegles } from "../rules/moteur";
@@ -17,6 +18,8 @@ export interface DemandeAnalyse {
   texte?: string | null;
   /** Lien collé : une annonce, ou un lien reçu d'un vendeur. */
   lien?: string | null;
+  /** Site indiqué par l'utilisateur ; `null` ou « autre » : poids stricts, comme Vinted. */
+  site?: Plateforme | null;
 }
 
 export interface DependancesPipeline {
@@ -46,8 +49,16 @@ export type ResultatDemande =
       liens: LienAnalyse[];
       /** Données lues que les règles n'ont pas utilisées (confiance basse). */
       ignorees: string[];
+      /** Le champ lien contenait l'annonce d'un site connu : son contenu n'a pas été lu. */
+      lienAnnonce: PlateformeAnnonce | null;
     }
-  | { ok: false; code: CodeErreur; ia?: SuiviIa };
+  | {
+      ok: false;
+      code: CodeErreur;
+      ia?: SuiviIa;
+      /** Pour `lien_non_recuperable` : le site de l'annonce, s'il est reconnu. */
+      lienAnnonce?: PlateformeAnnonce | null;
+    };
 
 function dateIso(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -63,6 +74,8 @@ function dateIso(d: Date): string {
  *   texte brut (qui contient aussi ce que dit l'acheteur) ne leur est pas transmis.
  * - Un lien seul est analysé statiquement. S'il n'a rien de suspect, on ne peut rien en dire
  *   sans le contenu de l'annonce : on demande une capture.
+ * - Les liens du texte collé passent toujours par l'analyseur, même quand l'IA a lu la
+ *   conversation : un lien suspect ne doit pas dépendre de ce que l'IA a pensé à rapporter.
  */
 export async function analyserDemande(
   demande: DemandeAnalyse,
@@ -118,16 +131,17 @@ export async function analyserDemande(
   // Texte brut seulement faute de mieux : sinon on perdrait la séparation des auteurs.
   const texteBrut = evaluation ? null : texte;
 
-  const bruts = collecterLiensBruts(donnees, texteBrut);
+  const bruts = collecterLiensBruts(donnees, texte);
   if (lien !== null) bruts.push(lien);
   const liens = analyserLiens(bruts);
+  const lienAnnonce = lien !== null ? plateformeDeLien(analyserLien(lien)) : null;
 
   if (!aDuContenu) {
     const suspect = liens.some((l) => l.verdict === "suspect");
-    if (!suspect) return { ok: false, code: "lien_non_recuperable", ia: suivi };
+    if (!suspect) return { ok: false, code: "lien_non_recuperable", ia: suivi, lienAnnonce };
   }
 
-  const regles = evaluerRegles({ donnees, texte: texteBrut, liens });
+  const regles = evaluerRegles({ donnees, texte: texteBrut, liens, site: demande.site ?? null });
   const resultat = assemblerResultat({ donnees, regles, ia: evaluation });
-  return { ok: true, resultat, ia: suivi, liens, ignorees: regles.ignorees };
+  return { ok: true, resultat, ia: suivi, liens, ignorees: regles.ignorees, lienAnnonce };
 }

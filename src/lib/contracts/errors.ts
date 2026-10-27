@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DiagnosticSchema } from "./diagnostic";
 
 export const CODES_ERREUR = [
   "entree_invalide",
@@ -19,6 +20,8 @@ export const ApiErrorSchema = z.object({
   erreur: z.object({
     code: CodeErreurSchema,
     message: z.string(),
+    /** Présent quand l'erreur vient de l'IA indisponible : pourquoi. */
+    diagnostic: DiagnosticSchema.optional(),
   }),
 });
 export type ApiError = z.infer<typeof ApiErrorSchema>;

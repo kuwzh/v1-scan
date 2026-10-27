@@ -1,5 +1,7 @@
 import { APP_NAME } from "../config";
+import type { CodeDiagnostic } from "../contracts/diagnostic";
 import type { CodeErreur } from "../contracts/errors";
+import type { Plateforme } from "../contracts/extracted";
 import { MAX_IMAGES } from "../contracts/limits";
 import type { Gravite } from "../contracts/signals";
 import type { Niveau } from "../contracts/niveau";
@@ -64,6 +66,86 @@ export const fr = {
     "Analyse partielle : l'analyse par IA n'était pas disponible, ce résultat repose uniquement sur des règles automatiques.",
   forteAffluence:
     "Forte affluence, analyse partielle : l'analyse par IA est suspendue pour le moment, ce résultat repose uniquement sur des règles automatiques.",
+  /**
+   * Pourquoi l'analyse par IA n'a pas été utilisée. `public` : phrase générale, montrée en
+   * production (`null` : le message de forte affluence suffit). `detail` : précision technique,
+   * montrée en preview et en développement seulement ; elle ne contient jamais de contenu
+   * utilisateur (`technique` est un code HTTP ou une liste de champs).
+   */
+  diagnostic: {
+    ia_non_configuree: {
+      public: "L'analyse par IA n'est pas activée sur ce service.",
+      detail: () => "Aucune clé ANTHROPIC_API_KEY n'est définie : l'analyse par IA est désactivée.",
+    },
+    stockage_non_partage: {
+      public: "L'analyse par IA est désactivée : le service n'est pas entièrement configuré.",
+      detail: () =>
+        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (ou KV_REST_API_URL / KV_REST_API_TOKEN) manquants : en production, l'IA est coupée sans stockage partagé (rate limit et plafond de dépense inopérants).",
+    },
+    secret_manquant: {
+      public: "L'analyse par IA est désactivée : le service n'est pas entièrement configuré.",
+      detail: () =>
+        "IP_HASH_SECRET manquant : en production, l'IA est coupée tant que le secret servant à hasher les IP n'est pas défini.",
+    },
+    stockage_indisponible: {
+      public: "L'analyse par IA est suspendue : un service interne est momentanément indisponible.",
+      detail: () =>
+        "Le stockage (Upstash) est injoignable : rate limit et plafond de dépense inopérants, l'IA est coupée le temps de la panne.",
+    },
+    plafond_atteint: {
+      public: null,
+      detail: () =>
+        "Plafond de dépense quotidien atteint (DAILY_SPEND_CAP_USD) : l'IA est coupée jusqu'à minuit UTC.",
+    },
+    ia_echec_indisponible: {
+      public: "Le service d'IA est momentanément indisponible.",
+      detail: (technique?: string) =>
+        `Anthropic est injoignable ou surchargé${technique ? ` (${technique})` : ""}.`,
+    },
+    ia_echec_configuration: {
+      public: "Le service d'IA a refusé la requête : le service n'est pas correctement configuré.",
+      detail: (technique?: string) =>
+        `Anthropic a refusé la requête${technique ? ` (${technique})` : ""} : vérifie ANTHROPIC_API_KEY, ANTHROPIC_MODEL et le format de sortie demandé.`,
+    },
+    ia_echec_delai: {
+      public: "Le service d'IA n'a pas répondu à temps.",
+      detail: () => "Anthropic n'a pas répondu dans le délai (ANTHROPIC_TIMEOUT_MS).",
+    },
+    ia_echec_refus: {
+      public: "Le service d'IA n'a pas pu traiter ce contenu.",
+      detail: (technique?: string) =>
+        `Le modèle a refusé de répondre${technique ? ` (${technique})` : ""}.`,
+    },
+    ia_echec_tronquee: {
+      public: "Le service d'IA a renvoyé une réponse inexploitable.",
+      detail: () =>
+        "La réponse du modèle a été coupée avant la fin (ANTHROPIC_MAX_TOKENS trop bas ?).",
+    },
+    ia_echec_reponse_invalide: {
+      public: "Le service d'IA a renvoyé une réponse inexploitable.",
+      detail: (technique?: string) =>
+        `La réponse du modèle n'a pas la forme attendue${technique ? ` (${technique})` : ""}.`,
+    },
+  } satisfies Record<
+    CodeDiagnostic,
+    { public: string | null; detail: (technique?: string) => string }
+  >,
+
+  /** Lien d'annonce collé : son contenu n'est pas encore lu. */
+  lienAnnonce: {
+    titre: "Lecture d'annonce bientôt disponible",
+    sites: {
+      vinted: "Vinted",
+      leboncoin: "Leboncoin",
+      facebook_marketplace: "Facebook Marketplace",
+    } satisfies Record<Exclude<Plateforme, "autre">, string>,
+    erreur: (site: string) =>
+      `Lecture d'annonce bientôt disponible : on ne lit pas encore le contenu d'un lien ${site}. Envoie plutôt une capture de l'annonce, ou colle son texte.`,
+    avis: (site: string) =>
+      `Lecture d'annonce bientôt disponible : le lien ${site} n'a pas été lu. L'analyse s'appuie sur ce que tu as envoyé d'autre.`,
+    autreLien:
+      "On ne lit pas encore le contenu des liens. L'adresse elle-même ne présente aucun signal d'alerte, mais cela ne dit rien de la page. Envoie une capture de l'annonce, ou colle son texte.",
+  },
   disclaimer: `${APP_NAME} t'aide à décider, il ne garantit rien. Un risque faible ne veut pas dire « sans risque » : reste vigilant, surtout au moment de payer.`,
 
   feedback: {
@@ -289,7 +371,20 @@ export const fr = {
       placeholderTexte: "Colle ici la description de l'annonce ou les messages du vendeur",
       labelLien: "Lien",
       placeholderLien: "https://…",
+      aideLien:
+        "Lecture d'annonce bientôt disponible : un lien Vinted ou Leboncoin n'est pas encore lu, envoie plutôt une capture. On vérifie en revanche si une adresse est suspecte.",
     },
+    site: {
+      titre: "Sur quel site est l'annonce ?",
+      options: {
+        vinted: "Vinted",
+        leboncoin: "Leboncoin",
+        facebook_marketplace: "Marketplace",
+        autre: "Autre",
+      } satisfies Record<Plateforme, string>,
+      aide: "Ça règle la prudence : payer ou discuter en dehors de l'appli est un signal fort sur Vinted. « Autre » applique les règles les plus strictes.",
+    },
+    diagnostic: "Pourquoi ?",
     chargement: {
       titre: "Vérification en cours",
       etapes: [

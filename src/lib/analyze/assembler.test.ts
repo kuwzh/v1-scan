@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AiEvaluation } from "../contracts/ai";
 import { donneesExtraitesVides } from "../contracts/extracted";
-import { SEUIL_ELEVE } from "../contracts/niveau";
+import { SEUIL_ELEVE, SEUIL_MOYEN } from "../contracts/niveau";
 import { AnalysisResultSchema } from "../contracts/result";
 import { rangGravite } from "../contracts/signals";
 import { trouverFormulationsInterdites } from "../copy/wording";
@@ -101,16 +101,29 @@ describe("assemblerResultat : plancher et rassurants", () => {
     const { donnees, regles } = lancer(sain());
     const avec = assemblerResultat({
       donnees,
-      regles: { ...regles, score: 30, remise: 10 },
+      regles: { ...regles, score: 25, remise: 10 },
       ia: null,
     });
     const sans = assemblerResultat({
       donnees,
-      regles: { ...regles, score: 30, remise: 0 },
+      regles: { ...regles, score: 25, remise: 0 },
       ia: null,
     });
-    expect(avec.score).toBe(20);
-    expect(sans.score).toBe(30);
+    expect(avec.score).toBe(15);
+    expect(sans.score).toBe(25);
+  });
+
+  it("mais ils ne font pas passer un score de « moyen » à « faible »", () => {
+    const { donnees, regles } = lancer(sain());
+    for (const score of [30, 34, 40]) {
+      const r = assemblerResultat({
+        donnees,
+        regles: { ...regles, score, scoreBrut: score, remise: 10 },
+        ia: null,
+      });
+      expect(r.score, `score ${score}`).toBeGreaterThanOrEqual(SEUIL_MOYEN);
+      expect(r.niveau, `score ${score}`).toBe("moyen");
+    }
   });
 
   it("mais ils ne font pas passer un score de « élevé » à « moyen »", () => {

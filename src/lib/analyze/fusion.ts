@@ -1,4 +1,4 @@
-import { SEUIL_ELEVE } from "../contracts/niveau";
+import { SEUIL_ELEVE, SEUIL_MOYEN } from "../contracts/niveau";
 
 /** Poids de l'IA dans la moyenne avec les règles. */
 export const POIDS_IA = 0.5;
@@ -43,10 +43,11 @@ function borner(n: number): number {
  * 1. Base : la moyenne des deux, sans jamais descendre de plus de `MARGE_PRUDENCE` points
  *    sous la plus sévère. Sans IA, la base est le score des règles.
  * 2. Les rassurants retirent quelques points (`remise`). Mais dès qu'une des deux sources voit
- *    « élevé », ils ne peuvent plus faire descendre le score sous la base ni sous le seuil
- *    « élevé » : un compte ancien peut être piraté, des avis peuvent être achetés, et on ne veut
- *    pas que la remise s'ajoute à un désaccord de l'IA (ou à une consigne cachée qu'elle aurait
- *    suivie) pour faire changer de niveau.
+ *    « élevé » (ou « moyen »), ils ne peuvent plus faire descendre le score sous la base ni sous
+ *    le seuil de ce niveau : un compte ancien peut être piraté, des avis peuvent être achetés, et
+ *    on ne veut pas que la remise s'ajoute à un désaccord de l'IA (ou à une consigne cachée
+ *    qu'elle aurait suivie) pour faire changer de niveau. Une demande de paiement hors
+ *    plateforme reste ainsi « moyen » même chez un vendeur au profil irréprochable.
  * 3. Le plancher des signaux critiques passe en dernier : rien ne descend dessous.
  */
 export function fusionnerScores(entree: EntreeFusion): ResultatFusion {
@@ -62,7 +63,9 @@ export function fusionnerScores(entree: EntreeFusion): ResultatFusion {
 
   const plusSevere = Math.max(regles, entree.scoreIa === null ? 0 : borner(entree.scoreIa));
   let score = base - Math.max(0, entree.remise);
-  if (plusSevere >= SEUIL_ELEVE) score = Math.max(score, Math.min(base, SEUIL_ELEVE));
+  for (const seuil of [SEUIL_ELEVE, SEUIL_MOYEN]) {
+    if (plusSevere >= seuil) score = Math.max(score, Math.min(base, seuil));
+  }
   score = borner(Math.max(score, entree.plancher ?? 0));
 
   return { score, base, remiseAppliquee: Math.max(0, base - score) };

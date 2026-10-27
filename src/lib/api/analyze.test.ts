@@ -277,7 +277,11 @@ describe("traiterAnalyse : plafond de dépense (5 $/jour)", () => {
     expect(r.status).toBe(200);
     const json = AnalyzeResponseSchema.parse(await r.json());
     expect(json.resultat.meta.mode).toBe("regles_seules");
-    expect(json.partielle).toEqual({ raison: "forte_affluence", message: fr.forteAffluence });
+    expect(json.partielle).toEqual({
+      raison: "forte_affluence",
+      message: fr.forteAffluence,
+      diagnostic: expect.objectContaining({ code: "plafond_atteint" }),
+    });
     expect(json.resultat.signaux.length).toBeGreaterThan(0);
     expect(ia.appels).toHaveLength(0);
   });
@@ -346,7 +350,11 @@ describe("traiterAnalyse : plafond de dépense (5 $/jour)", () => {
     const r = await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps);
     expect(r.status).toBe(200);
     const json = AnalyzeResponseSchema.parse(await r.json());
-    expect(json.partielle).toEqual({ raison: "ia_indisponible", message: fr.analysePartielle });
+    expect(json.partielle).toEqual({
+      raison: "ia_indisponible",
+      message: fr.analysePartielle,
+      diagnostic: expect.objectContaining({ code: "ia_echec_indisponible" }),
+    });
     expect(await lireDepenseDuJour(stockage, new Date(horloge.ms))).toBe(0);
   });
 

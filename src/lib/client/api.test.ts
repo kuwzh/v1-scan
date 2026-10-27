@@ -74,11 +74,60 @@ describe("envoyerAnalyse", () => {
     ["analyse_impossible", true],
     ["entree_invalide", false],
     ["trop_de_requetes", false],
-    ["lien_non_recuperable", false],
+    ["lien_non_recuperable", true],
   ])("%s → proposer de coller le texte : %s", async (code, propose) => {
     const f = async () => json(erreurApi(code), 400);
     const r = await envoyerAnalyse(entree, { fetch: f as unknown as typeof fetch });
     expect(!r.ok && !r.annule && r.erreur.proposerTexte).toBe(propose);
+  });
+
+  it("reprend le diagnostic du serveur : pourquoi l'IA n'a pas servi", async () => {
+    const corps = {
+      erreur: {
+        code: "ia_indisponible",
+        message: "On ne peut pas lire les captures pour le moment.",
+        diagnostic: {
+          code: "ia_non_configuree",
+          message: "Aucune clé ANTHROPIC_API_KEY n'est définie.",
+        },
+      },
+    };
+    const f = async () => json(corps, 503);
+    const r = await envoyerAnalyse(entree, { fetch: f as unknown as typeof fetch });
+    expect(r).toEqual({
+      ok: false,
+      erreur: {
+        code: "ia_indisponible",
+        message: "On ne peut pas lire les captures pour le moment.",
+        proposerTexte: true,
+        diagnostic: "Aucune clé ANTHROPIC_API_KEY n'est définie.",
+      },
+    });
+  });
+
+  it("un diagnostic de mauvaise forme est ignoré", async () => {
+    const f = async () =>
+      json({ erreur: { code: "ia_indisponible", message: "x", diagnostic: { message: 42 } } }, 503);
+    const r = await envoyerAnalyse(entree, { fetch: f as unknown as typeof fetch });
+    expect(!r.ok && !r.annule && r.erreur.diagnostic).toBeUndefined();
+  });
+
+  it("envoie le site choisi, et rien quand il n'y en a pas", async () => {
+    const fetchFactice = vi.fn(async () => json(reponseValide));
+    const f = fetchFactice as unknown as typeof fetch;
+    await envoyerAnalyse({ ...entree, site: "leboncoin" }, { fetch: f });
+    await envoyerAnalyse(entree, { fetch: f });
+    const formes = fetchFactice.mock.calls.map(
+      (c) => (c as unknown as [string, RequestInit])[1].body as FormData,
+    );
+    expect(formes[0]?.get("site")).toBe("leboncoin");
+    expect(formes[1]?.has("site")).toBe(false);
+  });
+
+  it("une réponse sans la liste d'avis reste acceptée (déploiement en cours de mise à jour)", async () => {
+    const f = async () => json(reponseValide);
+    const r = await envoyerAnalyse(entree, { fetch: f as unknown as typeof fetch });
+    expect(r.ok).toBe(true);
   });
 
   it("429 : annonce combien de temps attendre quand le serveur l'indique", async () => {

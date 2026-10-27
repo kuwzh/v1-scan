@@ -60,7 +60,11 @@ export function construireContexte(entree: EntreeRegles): Contexte {
     (l) => l.verdict === "suspect" || l.verdict === "inconnu",
   );
   const liensSuspects: readonly LienAnalyse[] = entree.liens.filter((l) => l.verdict === "suspect");
-  const plateforme = donnees.plateforme;
+  // Ce que l'IA voit sur les captures prime sur le choix de l'utilisateur (le site est
+  // présélectionné sur Vinted, même si la capture vient de Leboncoin) ; faute de mieux, on prend
+  // le choix de l'utilisateur.
+  const detectee = donnees.plateforme && donnees.plateforme !== "autre" ? donnees.plateforme : null;
+  const plateforme = detectee ?? entree.site ?? donnees.plateforme;
 
   return {
     donnees,

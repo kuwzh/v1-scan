@@ -42,9 +42,12 @@ export const reglesPaiement: Regle[] = [
           }),
         ];
       }
+      // Sur Vinted (et quand le site est inconnu), PayPal est une sortie de plateforme : même
+      // poids que WhatsApp, ce qui garantit au moins « moyen » même si l'IA est moins sévère.
+      // Sur Leboncoin et Marketplace, où l'on paie souvent en direct, le poids reste réduit.
       return ctx.plateformeLocale
         ? [constat("paiement.paypal", t.paypal, "info", 0.1, { conseil: c.paiementHors })]
-        : [constat("paiement.paypal", t.paypal, "attention", 0.2, { conseil: c.paiementHors })];
+        : [constat("paiement.paypal", t.paypal, "importante", 0.4, { conseil: c.paiementHors })];
     },
   },
   {

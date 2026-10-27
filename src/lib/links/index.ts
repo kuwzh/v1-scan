@@ -4,5 +4,7 @@ export { extraireLiens } from "./extract";
 export { MARQUES, OFFICIELS } from "./marques";
 export type { Marque } from "./marques";
 export { normaliserLien } from "./normalize";
+export { plateformeDeLien } from "./plateforme";
+export type { PlateformeAnnonce } from "./plateforme";
 export type { LienIllisible, LienNormalise, ResultatNormalisation } from "./normalize";
 export type { LienAnalyse, MarqueVisee, VerdictLien } from "./types";

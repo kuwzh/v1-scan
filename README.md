@@ -75,11 +75,11 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 
 ## API
 
-| Route                   | Rôle                                                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `POST /api/v1/analyze`  | `multipart/form-data` : `images` (≤ 3), `texte`, `lien`. Renvoie `{ analyse_id, resultat, partielle }`. |
-| `POST /api/v1/feedback` | JSON `{ analyse_id, vote: "up" \| "down" }`. Un vote par analyse.                                       |
-| `GET /api/v1/stats`     | `{ analyses }` : le compteur public, mis en cache (CDN et mémoire).                                     |
+| Route                   | Rôle                                                                                                                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/v1/analyze`  | `multipart/form-data` : `images` (≤ 3), `texte`, `lien`, `site` (`vinted`, `leboncoin`, `facebook_marketplace`, `autre`). Renvoie `{ analyse_id, resultat, partielle, avis }`. |
+| `POST /api/v1/feedback` | JSON `{ analyse_id, vote: "up" \| "down" }`. Un vote par analyse.                                                                                                              |
+| `GET /api/v1/stats`     | `{ analyses }` : le compteur public, mis en cache (CDN et mémoire).                                                                                                            |
 
 Les erreurs ont toujours la forme `{ erreur: { code, message } }` (codes dans `src/lib/contracts/errors.ts`).
 
@@ -215,9 +215,28 @@ Pour les commandes `curl`, lancer la preview avec un lien partageable, ou tester
 3. **Fusion avec l'IA** (`src/lib/analyze/fusion.ts`) : moyenne des deux scores, sans descendre de plus de
    10 points sous la source la plus sévère. Sans IA, c'est le score des règles.
 4. **Rassurants** : ceux qui viennent du profil (compte ancien, avis, profil vérifié) retirent au plus
-   10 points. Ils ne font jamais passer un score de « élevé » à « moyen » et ne passent jamais sous le
-   plancher. Les rassurants tirés des messages ou cités par l'IA sont affichés sans effet sur le score.
+   10 points. Dès qu'une des deux sources voit « élevé » (ou « moyen »), ils ne font jamais passer le
+   score à un niveau inférieur, et ne passent jamais sous le plancher. Les rassurants tirés des
+   messages ou cités par l'IA sont affichés sans effet sur le score.
 5. **Niveau** : déduit du score final (0–29 faible, 30–59 moyen, 60–100 élevé).
+
+**Le site compte.** L'utilisateur choisit le site (Vinted par défaut) ; ce que l'IA lit sur une capture
+prime sur ce choix. Sur Leboncoin et Marketplace, où l'on paie et remet souvent en direct, les signaux
+de paiement, de téléphone et d'e-mail ont un poids réduit. Sur Vinted, sur « Autre » et quand le site
+est inconnu, ce sont les poids stricts : proposer PayPal est une sortie de plateforme (même poids que
+WhatsApp), donc « moyen » au minimum, quelle que soit l'IA.
+
+**Les liens** (`src/lib/links`) : ceux du champ lien et ceux du texte collé passent toujours par
+l'analyseur, que l'IA les ait rapportés ou non. La lecture du _contenu_ d'une annonce à partir d'un lien
+n'est pas encore disponible : un lien Vinted, Leboncoin ou Marketplace seul reçoit le message « Lecture
+d'annonce bientôt disponible » ; accompagné de texte ou de captures, l'analyse a lieu et un avis le
+rappelle.
+
+**Quand l'IA n'a pas servi**, le résultat dit pourquoi (`partielle.diagnostic`, et `erreur.diagnostic`
+pour des captures seules). En preview et en développement, le message nomme la cause (variable
+manquante, code HTTP d'Anthropic) ; en production, une phrase générale qui ne révèle rien de la
+configuration. `SHOW_DIAGNOSTICS=true` force le détail, `false` le masque. Les échecs liés à la
+configuration (clé refusée, schéma rejeté) sont aussi écrits dans les journaux, sans contenu.
 
 Les seuils et poids sont des valeurs de départ, à calibrer avec les fixtures
 (`src/lib/rules/fixtures`) puis avec le retour des utilisateurs.

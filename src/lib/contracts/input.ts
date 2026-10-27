@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PlateformeSchema } from "./extracted";
 import { MAX_IMAGES, MAX_TEXT_CHARS, MAX_URL_CHARS } from "./limits";
 
 /** Un champ de formulaire vide arrive en `""` : on le traite comme absent. */
@@ -16,6 +17,8 @@ const optionnel = <T extends z.ZodType>(schema: T) =>
 export const AnalyzeTextInputSchema = z.object({
   texte: optionnel(z.string().trim().max(MAX_TEXT_CHARS)),
   lien: optionnel(z.string().trim().max(MAX_URL_CHARS)),
+  /** Site choisi par l'utilisateur. Absent : poids stricts, comme sur Vinted. */
+  site: optionnel(PlateformeSchema),
 });
 export type AnalyzeTextInput = z.infer<typeof AnalyzeTextInputSchema>;
 

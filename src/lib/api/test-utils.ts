@@ -101,12 +101,13 @@ export const CONVERSATION_SUSPECTE = [
 ].join("\n");
 
 export function requeteAnalyse(
-  champs: { texte?: string; lien?: string; images?: File[] } = {},
+  champs: { texte?: string; lien?: string; images?: File[]; site?: string } = {},
   entetes: Record<string, string> = {},
 ): Request {
   const form = new FormData();
   if (champs.texte !== undefined) form.append("texte", champs.texte);
   if (champs.lien !== undefined) form.append("lien", champs.lien);
+  if (champs.site !== undefined) form.append("site", champs.site);
   for (const f of champs.images ?? []) form.append("images", f);
   return new Request("http://localhost/api/v1/analyze", {
     method: "POST",

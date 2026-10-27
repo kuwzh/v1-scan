@@ -88,6 +88,30 @@ describe("lireConfigSecurite : valeurs de départ", () => {
   });
 });
 
+describe("diagnosticDetaille : le détail technique n'est montré qu'hors production", () => {
+  const detaille = (env: Record<string, string>) => lireConfigSecurite(env).diagnosticDetaille;
+
+  it("oui en développement, non en production", () => {
+    expect(detaille({})).toBe(true);
+    expect(detaille({ NODE_ENV: "development" })).toBe(true);
+    expect(detaille({ NODE_ENV: "production" })).toBe(false);
+  });
+
+  it("sur Vercel, VERCEL_ENV distingue la preview (NODE_ENV y vaut aussi « production »)", () => {
+    expect(detaille({ NODE_ENV: "production", VERCEL_ENV: "preview" })).toBe(true);
+    expect(detaille({ NODE_ENV: "production", VERCEL_ENV: "development" })).toBe(true);
+    expect(detaille({ NODE_ENV: "production", VERCEL_ENV: "production" })).toBe(false);
+  });
+
+  it("SHOW_DIAGNOSTICS force le choix dans un sens ou dans l'autre", () => {
+    expect(
+      detaille({ NODE_ENV: "production", VERCEL_ENV: "production", SHOW_DIAGNOSTICS: "true" }),
+    ).toBe(true);
+    expect(detaille({ NODE_ENV: "development", SHOW_DIAGNOSTICS: "false" })).toBe(false);
+    expect(detaille({ NODE_ENV: "production", SHOW_DIAGNOSTICS: "peut-être" })).toBe(false);
+  });
+});
+
 describe("iaAutorisee", () => {
   const base = lireConfigSecurite({});
 

@@ -4,7 +4,9 @@ import { useRef, useState, type RefObject } from "react";
 import type { ErreurAffichee } from "@/lib/client/api";
 import { MAX_IMAGES, MAX_TEXT_CHARS, MAX_URL_CHARS } from "@/lib/contracts/limits";
 import { fr } from "@/lib/copy/fr";
+import type { Plateforme } from "@/lib/contracts/extracted";
 import { MessageErreur } from "./MessageErreur";
+import { SelecteurSite } from "./SelecteurSite";
 import type { Capture } from "./useCaptures";
 
 const FOCUS =
@@ -31,6 +33,8 @@ function IconeAppareilPhoto() {
 }
 
 export interface PropsSaisie {
+  site: Plateforme;
+  onSite: (site: Plateforme) => void;
   captures: readonly Capture[];
   enCours: number;
   messageCaptures: string | null;
@@ -50,6 +54,8 @@ export interface PropsSaisie {
 }
 
 export function Saisie({
+  site,
+  onSite,
   captures,
   enCours,
   messageCaptures,
@@ -192,6 +198,10 @@ export function Saisie({
       </section>
 
       <section className="mt-6">
+        <SelecteurSite valeur={site} onChange={onSite} />
+      </section>
+
+      <section className="mt-6">
         <button
           type="button"
           aria-expanded={texteOuvert}
@@ -242,8 +252,12 @@ export function Saisie({
                 onChange={(e) => onLien(e.target.value)}
                 maxLength={MAX_URL_CHARS}
                 placeholder={fr.ui.texte.placeholderLien}
+                aria-describedby="aide-lien"
                 className={CHAMP}
               />
+              <p id="aide-lien" className="mt-1.5 text-sm text-neutral-600 dark:text-neutral-400">
+                {fr.ui.texte.aideLien}
+              </p>
             </div>
           </div>
         )}

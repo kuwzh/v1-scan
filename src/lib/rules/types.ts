@@ -8,6 +8,11 @@ export interface EntreeRegles {
   texte?: string | null;
   /** Liens déjà analysés. `collecterLiensBruts` donne la liste à passer à `analyserLiens`. */
   liens: readonly LienAnalyse[];
+  /**
+   * Site indiqué par l'utilisateur. Sert quand la capture n'en montre aucun (texte collé, IA
+   * absente). Un site inconnu ou « autre » reçoit les poids stricts, ceux de Vinted.
+   */
+  site?: Plateforme | null;
 }
 
 export interface Segment {

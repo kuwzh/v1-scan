@@ -9,6 +9,7 @@ import { Chargement } from "./Chargement";
 import { Resultat } from "./Resultat";
 import { Saisie } from "./Saisie";
 import { useCaptures } from "./useCaptures";
+import { useSite } from "./useSite";
 
 /** Les trois écrans (saisie, chargement, résultat) et ce qui les relie. */
 export function Verificateur() {
@@ -17,6 +18,7 @@ export function Verificateur() {
   const [texte, setTexte] = useState("");
   const [lien, setLien] = useState("");
   const [texteOuvert, setTexteOuvert] = useState(false);
+  const [site, choisirSite] = useSite();
   const numeroEnvoi = useRef(0);
   const controleur = useRef<AbortController | null>(null);
   const zoneTexte = useRef<HTMLTextAreaElement>(null);
@@ -33,7 +35,7 @@ export function Verificateur() {
     controleur.current = appel;
     dispatch({ type: "envoyer", id });
     const r = await envoyerAnalyse(
-      { images: captures.map((c) => c.blob), texte, lien },
+      { images: captures.map((c) => c.blob), texte, lien, site },
       { signal: appel.signal },
     );
     if (r.ok) dispatch({ type: "reussi", id, reponse: r.reponse });
@@ -72,6 +74,8 @@ export function Verificateur() {
             <p className="mt-2 text-neutral-600 dark:text-neutral-400">{fr.ui.plateformes}</p>
           </header>
           <Saisie
+            site={site}
+            onSite={choisirSite}
             captures={captures}
             enCours={enCours}
             messageCaptures={message}

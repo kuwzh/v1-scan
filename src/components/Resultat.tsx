@@ -45,6 +45,7 @@ export function Resultat({
   onRecommencer: () => void;
 }) {
   const { resultat, partielle } = reponse;
+  const avis = reponse.avis ?? [];
   const titre = useRef<HTMLHeadingElement>(null);
   // Les lecteurs d'écran annoncent le résultat dès qu'il apparaît.
   useEffect(() => {
@@ -65,13 +66,29 @@ export function Resultat({
       </div>
 
       {partielle && (
-        <p
+        <div
           role="status"
           className="mt-4 rounded-2xl border border-neutral-300 bg-neutral-100 p-4 text-sm text-neutral-800 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
         >
-          {partielle.message}
-        </p>
+          <p>{partielle.message}</p>
+          {partielle.diagnostic && (
+            <p className="mt-3 border-t border-neutral-300 pt-3 dark:border-neutral-700">
+              <span className="font-semibold">{fr.ui.diagnostic}</span>{" "}
+              {partielle.diagnostic.message}
+            </p>
+          )}
+        </div>
       )}
+
+      {avis.map((a) => (
+        <p
+          key={a.code}
+          role="status"
+          className="mt-4 rounded-2xl border border-neutral-300 bg-neutral-100 p-4 text-sm text-neutral-800 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+        >
+          {a.message}
+        </p>
+      ))}
 
       <Section titre={fr.sections.signaux}>
         {resultat.signaux.length === 0 ? (

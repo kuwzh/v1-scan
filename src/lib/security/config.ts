@@ -21,6 +21,12 @@ export interface ConfigSecurite {
   /** Stockage partagé (Upstash Redis). `null` : repli en mémoire, valable en développement. */
   upstash: { url: string; token: string } | null;
   production: boolean;
+  /**
+   * Montrer à l'utilisateur le détail technique de pourquoi l'IA n'a pas été utilisée (variable
+   * manquante, code HTTP du fournisseur). Oui en développement et en preview, non en production,
+   * sauf `SHOW_DIAGNOSTICS=true`.
+   */
+  diagnosticDetaille: boolean;
 }
 
 type Env = Record<string, string | undefined>;
@@ -46,6 +52,18 @@ function premiere(env: Env, ...cles: string[]): string | undefined {
     if (valeur) return valeur;
   }
   return undefined;
+}
+
+function diagnosticDetaille(env: Env): boolean {
+  const force = env.SHOW_DIAGNOSTICS?.trim().toLowerCase();
+  if (force === "true") return true;
+  if (force === "false") return false;
+  // Sur Vercel, `VERCEL_ENV` distingue la production des previews (où NODE_ENV vaut aussi
+  // « production »). Ailleurs, on se fie à NODE_ENV.
+  const enProduction = env.VERCEL_ENV
+    ? env.VERCEL_ENV === "production"
+    : env.NODE_ENV === "production";
+  return !enProduction;
 }
 
 export function lireConfigSecurite(env: Env = process.env): ConfigSecurite {
@@ -74,6 +92,7 @@ export function lireConfigSecurite(env: Env = process.env): ConfigSecurite {
     ipSecret: env.IP_HASH_SECRET?.trim() || null,
     upstash: url && token ? { url, token } : null,
     production: env.NODE_ENV === "production",
+    diagnosticDetaille: diagnosticDetaille(env),
   };
 }
 

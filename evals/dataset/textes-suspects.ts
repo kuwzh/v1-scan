@@ -342,4 +342,26 @@ export const TEXTES_SUSPECTS: readonly CasEval[] = [
     },
     attendu: { niveauMin: "moyen" },
   },
+  {
+    id: "susp-paypal-seul",
+    categorie: "suspect",
+    groupe: "moyen",
+    description:
+      "Seule mention d'un paiement PayPal sur Vinted : sortie de plateforme, au moins moyen",
+    entree: { texte: "paiement paypal" },
+    attendu: { niveauMin: "moyen", signauxAttendus: ["paiement.paypal"] },
+  },
+  {
+    id: "susp-paypal-vendeur",
+    categorie: "suspect",
+    groupe: "moyen",
+    description: "Le vendeur préfère PayPal à la plateforme, conversation étiquetée",
+    entree: {
+      texte: conv(
+        "Moi : Bonjour, la veste est toujours disponible ?",
+        "Vendeur : Oui. Je préfère un paiement PayPal, c'est plus simple pour moi.",
+      ),
+    },
+    attendu: { niveauMin: "moyen", signauxAttendus: ["paiement.paypal"] },
+  },
 ];

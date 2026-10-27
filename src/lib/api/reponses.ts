@@ -1,3 +1,4 @@
+import type { Diagnostic } from "../contracts/diagnostic";
 import type { ApiError, CodeErreur } from "../contracts/errors";
 import { fr } from "../copy/fr";
 
@@ -34,9 +35,20 @@ export function reponseJson(
 
 export function reponseErreur(
   code: CodeErreur,
-  options: { statut?: number; message?: string; reessayerDansS?: number } = {},
+  options: {
+    statut?: number;
+    message?: string;
+    reessayerDansS?: number;
+    diagnostic?: Diagnostic | null;
+  } = {},
 ): Response {
-  const corps: ApiError = { erreur: { code, message: options.message ?? fr.erreurs[code] } };
+  const corps: ApiError = {
+    erreur: {
+      code,
+      message: options.message ?? fr.erreurs[code],
+      ...(options.diagnostic ? { diagnostic: options.diagnostic } : {}),
+    },
+  };
   return reponseJson(corps, {
     statut: options.statut ?? STATUT_PAR_CODE[code],
     headers:

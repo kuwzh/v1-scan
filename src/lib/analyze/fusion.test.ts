@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SEUIL_ELEVE } from "../contracts/niveau";
+import { SEUIL_ELEVE, SEUIL_MOYEN } from "../contracts/niveau";
 import { MARGE_PRUDENCE, fusionnerScores, type EntreeFusion } from "./fusion";
 
 const fusion = (e: Partial<EntreeFusion>) =>
@@ -83,6 +83,14 @@ describe("fusionnerScores : remise des rassurants", () => {
     expect(fusion({ scoreRegles: 59, scoreIa: 0, remise: 10 }).score).toBe(39);
   });
 
+  it("ne font jamais passer un score de « moyen » à « faible » quand une source voit « moyen »", () => {
+    expect(fusion({ scoreRegles: 40, remise: 10 }).score).toBe(30);
+    expect(fusion({ scoreRegles: 34, remise: 10 }).score).toBe(30);
+    expect(fusion({ scoreRegles: 40, scoreIa: 0, remise: 10 }).score).toBe(30);
+    // Aucune source ne voit « moyen » : la remise joue normalement.
+    expect(fusion({ scoreRegles: 25, remise: 10 }).score).toBe(15);
+  });
+
   it("ne passe jamais sous le plancher", () => {
     expect(fusion({ scoreRegles: 80, plancher: 75, scoreIa: 80, remise: 10 }).score).toBe(75);
     expect(fusion({ scoreRegles: 85, plancher: 85, scoreIa: 0, remise: 10 }).score).toBe(85);
@@ -129,6 +137,15 @@ describe("fusionnerScores : propriétés sur une grille", () => {
       if (plusSevere < SEUIL_ELEVE) continue;
       const { base, score } = fusionnerScores(c);
       expect(score, JSON.stringify(c)).toBeGreaterThanOrEqual(Math.min(base, SEUIL_ELEVE));
+    }
+  });
+
+  it("quand une source voit « moyen », les rassurants ne font jamais descendre sous min(base, seuil)", () => {
+    for (const c of cas) {
+      const plusSevere = Math.max(c.scoreRegles, c.scoreIa ?? 0);
+      if (plusSevere < SEUIL_MOYEN) continue;
+      const { base, score } = fusionnerScores(c);
+      expect(score, JSON.stringify(c)).toBeGreaterThanOrEqual(Math.min(base, SEUIL_MOYEN));
     }
   });
 

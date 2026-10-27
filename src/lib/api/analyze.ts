@@ -8,6 +8,8 @@ import {
   aUneEntree,
   trancheDeScore,
   type AnalyzeResponse,
+  type CodeDiagnostic,
+  type Diagnostic,
   type RaisonPartielle,
 } from "../contracts";
 import { fr } from "../copy/fr";
@@ -25,10 +27,18 @@ import {
 import { DUREE_ID_ANALYSE_S, cleAnalyse, encoderAnalyse } from "./cles";
 import { compterAnalyse } from "./compteur";
 import type { DependancesApi } from "./deps";
+import { creerDiagnostic, diagnosticDepuisSuivi } from "./diagnostic";
 import { reponseErreur, reponseJson, requeteInterSites, secondesJusquaMinuitUtc } from "./reponses";
 
 /** Pourquoi l'IA n'a pas été utilisée pour cette demande, alors qu'elle aurait pu l'être. */
-type IaCoupee = "plafond" | "indisponible" | null;
+type IaCoupee = CodeDiagnostic | null;
+
+/** Échecs de l'IA qui relèvent de la configuration ou de nos réglages : à voir dans les journaux. */
+const ECHECS_A_JOURNALISER: ReadonlySet<CodeDiagnostic> = new Set([
+  "ia_echec_configuration",
+  "ia_echec_reponse_invalide",
+  "ia_echec_tronquee",
+]);
 
 /**
  * Coût à inscrire au plafond une fois l'appel terminé. `null` garde la réservation (coût
@@ -45,14 +55,17 @@ function partielle(
   ia: SuiviIa,
   mode: "complet" | "regles_seules",
   iaCoupee: IaCoupee,
+  diagnostic: Diagnostic | null,
 ): AnalyzeResponse["partielle"] {
   if (mode === "complet") return null;
   // Un lien analysé seul n'a rien à faire lire à l'IA : ce n'est pas une analyse « partielle ».
   if (ia.statut === "absente" && ia.motif === "non_necessaire") return null;
-  const raison: RaisonPartielle = iaCoupee === "plafond" ? "forte_affluence" : "ia_indisponible";
+  const raison: RaisonPartielle =
+    iaCoupee === "plafond_atteint" ? "forte_affluence" : "ia_indisponible";
   return {
     raison,
     message: raison === "forte_affluence" ? fr.forteAffluence : fr.analysePartielle,
+    diagnostic,
   };
 }
 
@@ -115,9 +128,12 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
   ) {
     return reponseErreur("entree_invalide");
   }
+  const champSite = form.get("site");
+  if (champSite !== null && typeof champSite !== "string") return reponseErreur("entree_invalide");
   const texte = AnalyzeTextInputSchema.safeParse({
     texte: champTexte ?? undefined,
     lien: champLien ?? undefined,
+    site: champSite ?? undefined,
   });
   if (!texte.success) return reponseErreur("entree_invalide");
 
@@ -136,9 +152,14 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
   const aDuContenu = images.length > 0 || Boolean(texte.data.texte);
   let iaCoupee: IaCoupee = null;
   let reservation: Reservation | null = null;
-  if (aDuContenu && deps.evaluateur) {
-    if (!iaAutorisee(deps.config).autorisee || !stockageFiable) {
-      iaCoupee = "indisponible";
+  const autorisation = iaAutorisee(deps.config);
+  if (aDuContenu && !deps.evaluateur) {
+    iaCoupee = "ia_non_configuree";
+  } else if (aDuContenu && deps.evaluateur) {
+    if (!autorisation.autorisee) {
+      iaCoupee = autorisation.motif;
+    } else if (!stockageFiable) {
+      iaCoupee = "stockage_indisponible";
     } else {
       try {
         const r = await reserver(deps.stockage, {
@@ -151,9 +172,9 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
           maintenant,
         });
         if (r.ok) reservation = r.reservation;
-        else iaCoupee = "plafond";
+        else iaCoupee = "plafond_atteint";
       } catch {
-        iaCoupee = "indisponible";
+        iaCoupee = "stockage_indisponible";
       }
     }
   }
@@ -163,7 +184,12 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
   let resultat: ResultatDemande;
   try {
     resultat = await analyserDemande(
-      { images, texte: texte.data.texte ?? null, lien: texte.data.lien ?? null },
+      {
+        images,
+        texte: texte.data.texte ?? null,
+        lien: texte.data.lien ?? null,
+        site: texte.data.site ?? null,
+      },
       { evaluerIa, maintenant: deps.maintenant },
     );
   } catch {
@@ -179,16 +205,38 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
     }
   }
 
-  // 5. Réponse.
+  // 5. Réponse. Quand l'IA n'a pas servi, on dit pourquoi : jamais de résultat partiel silencieux.
+  const echec = diagnosticDepuisSuivi(resultat.ia);
+  const codeDiagnostic = iaCoupee ?? echec?.code ?? null;
+  const diagnostic = codeDiagnostic
+    ? creerDiagnostic(codeDiagnostic, {
+        detaille: deps.config.diagnosticDetaille,
+        technique: echec?.technique,
+      })
+    : null;
+  if (echec && ECHECS_A_JOURNALISER.has(echec.code)) {
+    // Ni contenu ni IP : le code d'échec et l'état HTTP ou les champs fautifs.
+    console.error(
+      `[gardo] appel IA en échec : ${echec.code}${echec.technique ? ` (${echec.technique})` : ""}`,
+    );
+  }
+
   if (!resultat.ok) {
-    if (resultat.code === "ia_indisponible" && iaCoupee === "plafond") {
-      return reponseErreur("plafond_atteint", {
-        reessayerDansS: secondesJusquaMinuitUtc(maintenant),
+    if (resultat.code === "ia_indisponible") {
+      return iaCoupee === "plafond_atteint"
+        ? reponseErreur("plafond_atteint", {
+            reessayerDansS: secondesJusquaMinuitUtc(maintenant),
+            diagnostic,
+          })
+        : reponseErreur("ia_indisponible", { reessayerDansS: 60, diagnostic });
+    }
+    if (resultat.code === "lien_non_recuperable") {
+      const site = resultat.lienAnnonce ? fr.lienAnnonce.sites[resultat.lienAnnonce] : null;
+      return reponseErreur("lien_non_recuperable", {
+        message: site ? fr.lienAnnonce.erreur(site) : fr.lienAnnonce.autreLien,
       });
     }
-    return reponseErreur(resultat.code, {
-      reessayerDansS: resultat.code === "ia_indisponible" ? 60 : undefined,
-    });
+    return reponseErreur(resultat.code);
   }
 
   const analyseId = crypto.randomUUID();
@@ -207,7 +255,15 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
   const corpsReponse: AnalyzeResponse = {
     analyse_id: analyseId,
     resultat: resultat.resultat,
-    partielle: partielle(resultat.ia, resultat.resultat.meta.mode, iaCoupee),
+    partielle: partielle(resultat.ia, resultat.resultat.meta.mode, iaCoupee, diagnostic),
+    avis: resultat.lienAnnonce
+      ? [
+          {
+            code: "lien_annonce_non_lue",
+            message: fr.lienAnnonce.avis(fr.lienAnnonce.sites[resultat.lienAnnonce]),
+          },
+        ]
+      : [],
   };
   return reponseJson(corpsReponse);
 }

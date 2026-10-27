@@ -1,5 +1,6 @@
 import type { AnalyzeResponse } from "../contracts/api";
 import type { CodeErreur } from "../contracts/errors";
+import type { Plateforme } from "../contracts/extracted";
 import type { Vote } from "../contracts/feedback";
 import { fr } from "../copy/fr";
 
@@ -15,6 +16,8 @@ export interface ErreurAffichee {
   message: string;
   /** Proposer de coller le texte à la place : les captures ne peuvent pas être lues pour l'instant. */
   proposerTexte: boolean;
+  /** Pourquoi l'IA n'a pas pu servir (variable manquante en preview, phrase générale en production). */
+  diagnostic?: string;
 }
 
 export type ResultatEnvoi =
@@ -26,6 +29,8 @@ export interface EntreeEnvoi {
   images: readonly Blob[];
   texte: string;
   lien: string;
+  /** Site choisi par l'utilisateur. */
+  site?: Plateforme;
 }
 
 export interface OptionsEnvoi {
@@ -40,6 +45,7 @@ const CODES_TEXTE_PROPOSE: ReadonlySet<string> = new Set([
   "ia_indisponible",
   "plafond_atteint",
   "analyse_impossible",
+  "lien_non_recuperable",
 ]);
 
 /** « 45 s » → « moins d'une minute », « 700 s » → « 12 minutes », « 7 300 s » → « 3 heures ». */
@@ -67,12 +73,18 @@ function estReponseAnalyse(v: unknown): v is AnalyzeResponse {
     r.niveau in fr.niveaux &&
     Array.isArray(r.signaux) &&
     Array.isArray(r.rassurants) &&
-    Array.isArray(r.conseils)
+    Array.isArray(r.conseils) &&
+    (v.avis === undefined || Array.isArray(v.avis))
   );
 }
 
-function erreur(code: CodeErreurAffichee, message: string): ErreurAffichee {
-  return { code, message, proposerTexte: CODES_TEXTE_PROPOSE.has(code) };
+function erreur(code: CodeErreurAffichee, message: string, diagnostic?: string): ErreurAffichee {
+  return {
+    code,
+    message,
+    proposerTexte: CODES_TEXTE_PROPOSE.has(code),
+    ...(diagnostic ? { diagnostic } : {}),
+  };
 }
 
 function erreurDepuisReponse(corps: unknown, retryAfter: string | null): ErreurAffichee {
@@ -88,7 +100,11 @@ function erreurDepuisReponse(corps: unknown, retryAfter: string | null): ErreurA
   }
   const message =
     typeof brute?.message === "string" && brute.message ? brute.message : fr.erreurs[code];
-  return erreur(code, message);
+  const diagnostic =
+    estObjet(brute?.diagnostic) && typeof brute.diagnostic.message === "string"
+      ? brute.diagnostic.message
+      : undefined;
+  return erreur(code, message, diagnostic);
 }
 
 /** Pose un délai maximal et relaie l'annulation de l'utilisateur sur un seul signal. */
@@ -120,6 +136,7 @@ export async function envoyerAnalyse(
   entree.images.forEach((blob, i) => form.append("images", blob, `capture-${i + 1}.jpg`));
   if (entree.texte.trim()) form.append("texte", entree.texte);
   if (entree.lien.trim()) form.append("lien", entree.lien);
+  if (entree.site) form.append("site", entree.site);
 
   const appel = signalAvecDelai(options.signal, options.delaiMs ?? DELAI_CLIENT_MS);
   try {
