@@ -67,25 +67,27 @@ export const fr = {
   forteAffluence:
     "Forte affluence, analyse partielle : l'analyse par IA est suspendue pour le moment, ce résultat repose uniquement sur des règles automatiques.",
   /**
-   * Pourquoi l'analyse par IA n'a pas été utilisée. `public` : phrase générale, montrée en
-   * production (`null` : le message de forte affluence suffit). `detail` : précision technique,
-   * montrée en preview et en développement seulement ; elle ne contient jamais de contenu
-   * utilisateur (`technique` est un code HTTP ou une liste de champs).
+   * Pourquoi l'analyse par IA n'a pas été utilisée. `detail` : la précision technique, montrée par
+   * défaut (variables manquantes, code HTTP) ; elle ne contient jamais de valeur secrète ni de
+   * contenu utilisateur (`technique` est une liste de variables, un code HTTP ou des champs).
+   * `public` : phrase générale, montrée quand `SHOW_DIAGNOSTICS=false` (`null` : le message de
+   * forte affluence suffit).
    */
   diagnostic: {
     ia_non_configuree: {
       public: "L'analyse par IA n'est pas activée sur ce service.",
-      detail: () => "Aucune clé ANTHROPIC_API_KEY n'est définie : l'analyse par IA est désactivée.",
+      detail: (technique?: string) =>
+        `Variable(s) d'environnement manquante(s) : ${technique || "ANTHROPIC_API_KEY"}. L'analyse par IA reste désactivée tant qu'elles ne sont pas définies.`,
     },
     stockage_non_partage: {
       public: "L'analyse par IA est désactivée : le service n'est pas entièrement configuré.",
-      detail: () =>
-        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (ou KV_REST_API_URL / KV_REST_API_TOKEN) manquants : en production, l'IA est coupée sans stockage partagé (rate limit et plafond de dépense inopérants).",
+      detail: (technique?: string) =>
+        `Variable(s) d'environnement manquante(s) : ${technique || "UPSTASH_REDIS_REST_URL (ou KV_REST_API_URL), UPSTASH_REDIS_REST_TOKEN (ou KV_REST_API_TOKEN)"}. Sans stockage partagé, le rate limit et le plafond de dépense ne sont pas fiables : l'IA reste coupée.`,
     },
     secret_manquant: {
       public: "L'analyse par IA est désactivée : le service n'est pas entièrement configuré.",
-      detail: () =>
-        "IP_HASH_SECRET manquant : en production, l'IA est coupée tant que le secret servant à hasher les IP n'est pas défini.",
+      detail: (technique?: string) =>
+        `Variable(s) d'environnement manquante(s) : ${technique || "IP_HASH_SECRET"}. Sans secret pour hasher les IP, l'IA reste coupée.`,
     },
     stockage_indisponible: {
       public: "L'analyse par IA est suspendue : un service interne est momentanément indisponible.",
@@ -139,10 +141,14 @@ export const fr = {
       leboncoin: "Leboncoin",
       facebook_marketplace: "Facebook Marketplace",
     } satisfies Record<Exclude<Plateforme, "autre">, string>,
+    // Les messages ne répètent pas le titre : l'interface l'affiche au-dessus.
     erreur: (site: string) =>
-      `Lecture d'annonce bientôt disponible : on ne lit pas encore le contenu d'un lien ${site}. Envoie plutôt une capture de l'annonce, ou colle son texte.`,
+      `On ne lit pas encore le contenu d'un lien ${site}. Envoie plutôt une capture de l'annonce, ou colle son texte.`,
     avis: (site: string) =>
-      `Lecture d'annonce bientôt disponible : le lien ${site} n'a pas été lu. L'analyse s'appuie sur ce que tu as envoyé d'autre.`,
+      `Le lien ${site} n'a pas été lu. L'analyse s'appuie sur ce que tu as envoyé d'autre.`,
+    /** Sous le champ lien, dès qu'une annonce d'un site connu y est collée. */
+    note: (site: string) =>
+      `Ce lien ${site} ne sera pas lu. Ajoute une capture ou colle le texte de l'annonce : on analyse quand même ce que tu envoies.`,
     autreLien:
       "On ne lit pas encore le contenu des liens. L'adresse elle-même ne présente aucun signal d'alerte, mais cela ne dit rien de la page. Envoie une capture de l'annonce, ou colle son texte.",
   },
@@ -372,7 +378,7 @@ export const fr = {
       labelLien: "Lien",
       placeholderLien: "https://…",
       aideLien:
-        "Lecture d'annonce bientôt disponible : un lien Vinted ou Leboncoin n'est pas encore lu, envoie plutôt une capture. On vérifie en revanche si une adresse est suspecte.",
+        "On vérifie si une adresse est suspecte. Le contenu d'une annonce n'est pas lu à partir d'un lien.",
     },
     site: {
       titre: "Sur quel site est l'annonce ?",

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { ErreurAffichee } from "@/lib/client/api";
+import { detecterLienAnnonce } from "@/lib/client/lien";
 import { MAX_IMAGES, MAX_TEXT_CHARS, MAX_URL_CHARS } from "@/lib/contracts/limits";
 import { fr } from "@/lib/copy/fr";
 import type { Plateforme } from "@/lib/contracts/extracted";
@@ -30,6 +31,14 @@ function IconeAppareilPhoto() {
       <circle cx={12} cy={13} r={3.5} />
     </svg>
   );
+}
+
+/**
+ * Un champ qu'on remplit ne doit pas rester sous le bouton fixé en bas : « nearest » ne défile que
+ * si nécessaire, et la marge réservée par `scroll-padding-bottom` tient compte de la hauteur du bouton.
+ */
+function ramenerAuDessusDuBouton(e: { currentTarget: HTMLElement }) {
+  e.currentTarget.scrollIntoView({ block: "nearest" });
 }
 
 export interface PropsSaisie {
@@ -76,6 +85,25 @@ export function Saisie({
   const fichier = useRef<HTMLInputElement>(null);
   const [survol, setSurvol] = useState(false);
   const occupees = captures.length + enCours;
+  const lienAnnonce = detecterLienAnnonce(lien);
+  const barre = useRef<HTMLDivElement>(null);
+
+  // Le bouton est fixé en bas de l'écran : on réserve sa hauteur (zone de sécurité de l'iPhone
+  // comprise) sous le contenu, et pour le défilement automatique vers le champ qu'on remplit,
+  // pour qu'il ne passe jamais dessous.
+  useEffect(() => {
+    const element = barre.current;
+    if (!element) return;
+    const racine = document.documentElement;
+    const mesurer = () => racine.style.setProperty("--hauteur-cta", `${element.offsetHeight}px`);
+    mesurer();
+    const observateur = new ResizeObserver(mesurer);
+    observateur.observe(element);
+    return () => {
+      observateur.disconnect();
+      racine.style.removeProperty("--hauteur-cta");
+    };
+  }, []);
   const complet = occupees >= MAX_IMAGES;
 
   function choisir(liste: FileList | null) {
@@ -84,7 +112,7 @@ export function Saisie({
 
   return (
     <form
-      className="flex flex-1 flex-col"
+      className="flex flex-1 flex-col pb-[calc(var(--hauteur-cta,10rem)+1rem)]"
       onSubmit={(e) => {
         e.preventDefault();
         onVerifier();
@@ -226,6 +254,7 @@ export function Saisie({
                 ref={zoneTexte}
                 value={texte}
                 onChange={(e) => onTexte(e.target.value)}
+                onFocus={ramenerAuDessusDuBouton}
                 maxLength={MAX_TEXT_CHARS}
                 rows={6}
                 placeholder={fr.ui.texte.placeholderTexte}
@@ -250,40 +279,56 @@ export function Saisie({
                 spellCheck={false}
                 value={lien}
                 onChange={(e) => onLien(e.target.value)}
+                onFocus={ramenerAuDessusDuBouton}
                 maxLength={MAX_URL_CHARS}
                 placeholder={fr.ui.texte.placeholderLien}
                 aria-describedby="aide-lien"
                 className={CHAMP}
               />
-              <p id="aide-lien" className="mt-1.5 text-sm text-neutral-600 dark:text-neutral-400">
-                {fr.ui.texte.aideLien}
-              </p>
+              <div id="aide-lien" aria-live="polite">
+                {lienAnnonce ? (
+                  <div className="mt-2 rounded-xl border border-neutral-300 bg-neutral-100 p-3 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                    <p className="font-semibold">{fr.lienAnnonce.titre}</p>
+                    <p className="mt-0.5">
+                      {fr.lienAnnonce.note(fr.lienAnnonce.sites[lienAnnonce])}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-1.5 text-sm text-neutral-600 dark:text-neutral-400">
+                    {fr.ui.texte.aideLien}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}
       </section>
 
-      <div className="mt-auto" />
-      <div className="sticky bottom-0 -mx-4 mt-8 bg-linear-to-t from-white from-70% to-transparent px-4 pt-6 pb-[max(1rem,env(safe-area-inset-bottom))] dark:from-neutral-950">
-        {!peutEnvoyer && enCours === 0 && (
-          <p
-            id="aide-cta"
-            className="mb-2 text-center text-sm text-neutral-600 dark:text-neutral-400"
+      <div
+        ref={barre}
+        className="fixed inset-x-0 bottom-0 z-10 bg-linear-to-t from-white from-70% to-transparent px-4 pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:from-neutral-950"
+      >
+        <div className="mx-auto max-w-lg">
+          {!peutEnvoyer && enCours === 0 && (
+            <p
+              id="aide-cta"
+              className="mb-1.5 text-center text-sm text-neutral-600 dark:text-neutral-400"
+            >
+              {fr.ui.ctaAide}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={!peutEnvoyer}
+            aria-describedby={peutEnvoyer ? undefined : "aide-cta"}
+            className={`h-14 w-full rounded-2xl bg-indigo-600 text-lg font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-600 disabled:shadow-none dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:bg-neutral-800 dark:disabled:text-neutral-400 ${FOCUS}`}
           >
-            {fr.ui.ctaAide}
+            {enCours > 0 ? fr.ui.ctaTraitement : fr.ui.cta}
+          </button>
+          <p className="mt-2 text-center text-xs text-neutral-600 dark:text-neutral-400">
+            {fr.ui.confidentialite}
           </p>
-        )}
-        <button
-          type="submit"
-          disabled={!peutEnvoyer}
-          aria-describedby={peutEnvoyer ? undefined : "aide-cta"}
-          className={`h-14 w-full rounded-2xl bg-indigo-600 text-lg font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-600 disabled:shadow-none dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:bg-neutral-800 dark:disabled:text-neutral-400 ${FOCUS}`}
-        >
-          {enCours > 0 ? fr.ui.ctaTraitement : fr.ui.cta}
-        </button>
-        <p className="mt-3 text-center text-xs text-neutral-600 dark:text-neutral-400">
-          {fr.ui.confidentialite}
-        </p>
+        </div>
       </div>
     </form>
   );

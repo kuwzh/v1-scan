@@ -4,7 +4,7 @@ import { ApiErrorSchema } from "../contracts/errors";
 import { fr } from "../copy/fr";
 import { trouverFormulationsInterdites } from "../copy/wording";
 import { traiterAnalyse } from "./analyze";
-import { CONVERSATION_BANALE, creerContexteTest, requeteAnalyse } from "./test-utils";
+import { CONVERSATION_BANALE, creerContexteTest, imagePng, requeteAnalyse } from "./test-utils";
 
 const PHISHING = "https://vinted.fr.paiement-securise.com/colis";
 const analyse = async (champs: Parameters<typeof requeteAnalyse>[0], sansIa = true) => {
@@ -38,7 +38,8 @@ describe("liens dans l'API", () => {
       const e = ApiErrorSchema.parse(await r.json()).erreur;
       expect(e.code).toBe("lien_non_recuperable");
       expect(e.message).toBe(fr.lienAnnonce.erreur(site));
-      expect(e.message).toMatch(/^Lecture d'annonce bientôt disponible/);
+      // Le titre est affiché au-dessus par l'interface : le message ne le répète pas.
+      expect(e.message).not.toContain(fr.lienAnnonce.titre);
       expect(e.message).toContain("capture");
       expect(e.diagnostic).toBeUndefined();
     },
@@ -60,13 +61,35 @@ describe("liens dans l'API", () => {
     expect(r.avis).toEqual([
       { code: "lien_annonce_non_lue", message: fr.lienAnnonce.avis("Vinted") },
     ]);
-    expect(r.avis[0]?.message).toMatch(/^Lecture d'annonce bientôt disponible/);
+    expect(r.avis[0]?.message).not.toContain(fr.lienAnnonce.titre);
+  });
+
+  it("un lien d'annonce ne bloque rien : texte et captures sont analysés quand même", async () => {
+    const lien = "https://www.vinted.fr/items/123456-sac-lv";
+    const avecTexte = await analyse({ lien, texte: CONVERSATION_BANALE }, false);
+    expect(avecTexte.status).toBe(200);
+    const avecCaptures = await analyse({ lien, images: [imagePng()] }, false);
+    expect(avecCaptures.status).toBe(200);
+    const body = AnalyzeResponseSchema.parse(await avecCaptures.json());
+    expect(body.avis.map((a) => a.code)).toEqual(["lien_annonce_non_lue"]);
+    expect(body.resultat.meta.mode).toBe("complet");
+    const tout = await analyse({ lien, texte: CONVERSATION_BANALE, images: [imagePng()] }, false);
+    expect(tout.status).toBe(200);
+  });
+
+  it("l'erreur bloquante n'existe que si le lien est la seule entrée", async () => {
+    const lien = "https://www.leboncoin.fr/ad/vetements/2987654321";
+    expect((await analyse({ lien })).status).toBe(422);
+    // Un texte vide ou des espaces ne comptent pas comme une entrée.
+    expect((await analyse({ lien, texte: "   " })).status).toBe(422);
+    expect((await analyse({ lien, texte: "Bonjour" })).status).toBe(200);
   });
 
   it("les textes de lecture d'annonce respectent le wording prudent", () => {
     for (const site of Object.values(fr.lienAnnonce.sites)) {
       expect(trouverFormulationsInterdites(fr.lienAnnonce.erreur(site))).toEqual([]);
       expect(trouverFormulationsInterdites(fr.lienAnnonce.avis(site))).toEqual([]);
+      expect(trouverFormulationsInterdites(fr.lienAnnonce.note(site))).toEqual([]);
     }
     expect(trouverFormulationsInterdites(fr.lienAnnonce.autreLien)).toEqual([]);
   });

@@ -88,27 +88,43 @@ describe("lireConfigSecurite : valeurs de départ", () => {
   });
 });
 
-describe("diagnosticDetaille : le détail technique n'est montré qu'hors production", () => {
+describe("diagnosticDetaille : le détail technique est montré partout, sauf SHOW_DIAGNOSTICS=false", () => {
   const detaille = (env: Record<string, string>) => lireConfigSecurite(env).diagnosticDetaille;
 
-  it("oui en développement, non en production", () => {
+  it("oui par défaut, en développement comme en preview comme en production", () => {
     expect(detaille({})).toBe(true);
     expect(detaille({ NODE_ENV: "development" })).toBe(true);
-    expect(detaille({ NODE_ENV: "production" })).toBe(false);
-  });
-
-  it("sur Vercel, VERCEL_ENV distingue la preview (NODE_ENV y vaut aussi « production »)", () => {
     expect(detaille({ NODE_ENV: "production", VERCEL_ENV: "preview" })).toBe(true);
-    expect(detaille({ NODE_ENV: "production", VERCEL_ENV: "development" })).toBe(true);
-    expect(detaille({ NODE_ENV: "production", VERCEL_ENV: "production" })).toBe(false);
+    expect(detaille({ NODE_ENV: "production", VERCEL_ENV: "production" })).toBe(true);
   });
 
-  it("SHOW_DIAGNOSTICS force le choix dans un sens ou dans l'autre", () => {
-    expect(
-      detaille({ NODE_ENV: "production", VERCEL_ENV: "production", SHOW_DIAGNOSTICS: "true" }),
-    ).toBe(true);
-    expect(detaille({ NODE_ENV: "development", SHOW_DIAGNOSTICS: "false" })).toBe(false);
-    expect(detaille({ NODE_ENV: "production", SHOW_DIAGNOSTICS: "peut-être" })).toBe(false);
+  it("SHOW_DIAGNOSTICS=false le masque (à mettre avant d'ouvrir l'app au public)", () => {
+    expect(detaille({ NODE_ENV: "production", SHOW_DIAGNOSTICS: "false" })).toBe(false);
+    expect(detaille({ SHOW_DIAGNOSTICS: " FALSE " })).toBe(false);
+  });
+
+  it("toute autre valeur garde le détail", () => {
+    expect(detaille({ SHOW_DIAGNOSTICS: "true" })).toBe(true);
+    expect(detaille({ SHOW_DIAGNOSTICS: "peut-être" })).toBe(true);
+    expect(detaille({ SHOW_DIAGNOSTICS: "" })).toBe(true);
+  });
+});
+
+describe("environnement et présence des variables Upstash", () => {
+  it("VERCEL_ENV distingue preview et production (NODE_ENV vaut « production » pour les deux)", () => {
+    const e = (env: Record<string, string>) => lireConfigSecurite(env).environnement;
+    expect(e({ NODE_ENV: "production", VERCEL_ENV: "preview" })).toBe("preview");
+    expect(e({ NODE_ENV: "production", VERCEL_ENV: "production" })).toBe("production");
+    expect(e({ NODE_ENV: "production" })).toBe("production");
+    expect(e({})).toBe("development");
+    expect(e({ NODE_ENV: "production", VERCEL_ENV: "n'importe quoi" })).toBe("production");
+  });
+
+  it("dit laquelle des deux variables Upstash est présente", () => {
+    const c = lireConfigSecurite({ UPSTASH_REDIS_REST_URL: "https://x" });
+    expect([c.upstashUrlPresente, c.upstashJetonPresent]).toEqual([true, false]);
+    const d = lireConfigSecurite({ KV_REST_API_TOKEN: "t" });
+    expect([d.upstashUrlPresente, d.upstashJetonPresent]).toEqual([false, true]);
   });
 });
 

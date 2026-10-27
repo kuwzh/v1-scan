@@ -11,9 +11,9 @@ import { normaliserTexte } from "../rules/texte";
 import type { AvertissementsIa } from "./types";
 import type { ReponseModele } from "./wire";
 
-const MAX_MESSAGES = 60;
+const MAX_MESSAGES = 150;
 const MAX_LIENS = 20;
-const MAX_LONGUEUR_MESSAGE = 2_000;
+const MAX_LONGUEUR_MESSAGE = 4_000;
 
 /** Bornes de plausibilité : au-delà, la valeur est écartée (null) plutôt que crue. */
 const BORNES = {

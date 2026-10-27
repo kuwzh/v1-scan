@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { MODELE_PAR_DEFAUT, lireConfigIa } from "./config";
 
 describe("lireConfigIa", () => {
-  it("Haiku 5.5, effort bas, 20 s : les valeurs par défaut", () => {
+  it("Haiku 5.5, effort bas, 30 s, 8 000 jetons : les valeurs par défaut", () => {
     expect(lireConfigIa({})).toEqual({
       apiKey: null,
       model: "claude-haiku-5-5",
       effort: "low",
-      timeoutMs: 20_000,
-      maxTokens: 6_000,
+      timeoutMs: 30_000,
+      maxTokens: 8_000,
     });
     expect(MODELE_PAR_DEFAUT).toBe("claude-haiku-5-5");
   });
@@ -35,7 +35,7 @@ describe("lireConfigIa", () => {
   });
 
   it("borne le délai", () => {
-    expect(lireConfigIa({ ANTHROPIC_TIMEOUT_MS: "100" }).timeoutMs).toBe(20_000);
+    expect(lireConfigIa({ ANTHROPIC_TIMEOUT_MS: "100" }).timeoutMs).toBe(30_000);
     expect(lireConfigIa({ ANTHROPIC_TIMEOUT_MS: "15000" }).timeoutMs).toBe(15_000);
   });
 });

@@ -20,6 +20,7 @@ afterEach(() => vi.restoreAllMocks());
 
 const UPSTASH = { UPSTASH_REDIS_REST_URL: "https://x.upstash.io", UPSTASH_REDIS_REST_TOKEN: "t" };
 const PRODUCTION = { NODE_ENV: "production", VERCEL_ENV: "production" };
+const PUBLIC = { ...PRODUCTION, SHOW_DIAGNOSTICS: "false" };
 const PREVIEW = { NODE_ENV: "production", VERCEL_ENV: "preview" };
 /** Un nom de variable d'environnement (ANTHROPIC_API_KEY, DAILY_SPEND_CAP_USD…). */
 const NOM_DE_VARIABLE = /\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b/;
@@ -37,8 +38,17 @@ describe("l'analyse partielle dit toujours pourquoi", () => {
     expect(r.partielle?.diagnostic?.message).toContain("ANTHROPIC_API_KEY");
   });
 
-  it("clé absente en production : phrase générale, aucun nom de variable", async () => {
+  it("clé absente en production : le détail nomme la variable (c'est le comportement par défaut)", async () => {
     const { deps } = creerContexteTest({ ia: null, env: { ...PRODUCTION, ...UPSTASH } });
+    const r = await reponseAnalyse(
+      await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps),
+    );
+    expect(r.partielle?.diagnostic?.code).toBe("ia_non_configuree");
+    expect(r.partielle?.diagnostic?.message).toContain("ANTHROPIC_API_KEY");
+  });
+
+  it("SHOW_DIAGNOSTICS=false : phrase générale, aucun nom de variable", async () => {
+    const { deps } = creerContexteTest({ ia: null, env: { ...PUBLIC, ...UPSTASH } });
     const r = await reponseAnalyse(
       await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps),
     );
@@ -65,14 +75,55 @@ describe("l'analyse partielle dit toujours pourquoi", () => {
     expect(r.partielle?.diagnostic?.message).toContain("IP_HASH_SECRET");
   });
 
-  it("production mal configurée : phrase générale sans nom de variable", async () => {
-    const { deps } = creerContexteTest({ env: PRODUCTION });
+  it("SHOW_DIAGNOSTICS=false, production mal configurée : phrase générale sans nom de variable", async () => {
+    const { deps } = creerContexteTest({ env: PUBLIC });
     const r = await reponseAnalyse(
       await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps),
     );
     expect(r.partielle?.diagnostic?.code).toBe("stockage_non_partage");
     expect(r.partielle?.diagnostic?.message).toBe(fr.diagnostic.stockage_non_partage.public);
     expect(r.partielle?.diagnostic?.message).not.toMatch(NOM_DE_VARIABLE);
+  });
+
+  it("production sans rien configurer : toutes les variables manquantes sont listées d'un coup", async () => {
+    const { deps } = creerContexteTest({
+      ia: null,
+      env: { ...PRODUCTION, ANTHROPIC_API_KEY: "", IP_HASH_SECRET: "" },
+    });
+    const r = await reponseAnalyse(
+      await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps),
+    );
+    const message = r.partielle?.diagnostic?.message ?? "";
+    for (const variable of [
+      "ANTHROPIC_API_KEY",
+      "UPSTASH_REDIS_REST_URL",
+      "UPSTASH_REDIS_REST_TOKEN",
+      "IP_HASH_SECRET",
+    ]) {
+      expect(message, variable).toContain(variable);
+    }
+  });
+
+  it("dit laquelle des deux variables Upstash manque", async () => {
+    const { deps } = creerContexteTest({
+      env: { ...PRODUCTION, UPSTASH_REDIS_REST_URL: "https://x.upstash.io" },
+    });
+    const r = await reponseAnalyse(
+      await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps),
+    );
+    const message = r.partielle?.diagnostic?.message ?? "";
+    expect(message).toContain("UPSTASH_REDIS_REST_TOKEN");
+    expect(message).not.toContain("UPSTASH_REDIS_REST_URL");
+  });
+
+  it("en développement, seule la clé Anthropic est exigée : pas de variable Upstash dans le message", async () => {
+    const { deps } = creerContexteTest({ ia: null, env: { ANTHROPIC_API_KEY: "" } });
+    const r = await reponseAnalyse(
+      await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), deps),
+    );
+    const message = r.partielle?.diagnostic?.message ?? "";
+    expect(message).toContain("ANTHROPIC_API_KEY");
+    expect(message).not.toContain("UPSTASH");
   });
 
   it("stockage en panne", async () => {
@@ -87,7 +138,7 @@ describe("l'analyse partielle dit toujours pourquoi", () => {
     expect(r.partielle?.diagnostic?.code).toBe("stockage_indisponible");
   });
 
-  it("plafond atteint : en développement le détail nomme le réglage ; en production le message de forte affluence suffit", async () => {
+  it("plafond atteint : le détail nomme le réglage ; avec SHOW_DIAGNOSTICS=false le message de forte affluence suffit", async () => {
     const dev = creerContexteTest({ env: { DAILY_SPEND_CAP_USD: "0" } });
     const r1 = await reponseAnalyse(
       await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), dev.deps),
@@ -96,7 +147,7 @@ describe("l'analyse partielle dit toujours pourquoi", () => {
     expect(r1.partielle?.diagnostic?.message).toContain("DAILY_SPEND_CAP_USD");
 
     const prod = creerContexteTest({
-      env: { ...PRODUCTION, ...UPSTASH, DAILY_SPEND_CAP_USD: "0" },
+      env: { ...PUBLIC, ...UPSTASH, DAILY_SPEND_CAP_USD: "0" },
     });
     const r2 = await reponseAnalyse(
       await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_SUSPECTE }), prod.deps),
@@ -172,8 +223,8 @@ describe("des captures seules sans IA : l'erreur dit pourquoi", () => {
     expect(e.diagnostic?.message).toContain("UPSTASH_REDIS_REST_URL");
   });
 
-  it("production : phrase générale", async () => {
-    const { deps } = creerContexteTest({ env: PRODUCTION });
+  it("SHOW_DIAGNOSTICS=false : phrase générale", async () => {
+    const { deps } = creerContexteTest({ env: PUBLIC });
     const e = await erreur(await traiterAnalyse(requeteAnalyse({ images: [imagePng()] }), deps));
     expect(e.diagnostic?.message).not.toMatch(NOM_DE_VARIABLE);
   });

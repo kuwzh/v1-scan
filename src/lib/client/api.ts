@@ -40,7 +40,7 @@ export interface OptionsEnvoi {
   delaiMs?: number;
 }
 
-export const DELAI_CLIENT_MS = 40_000;
+export const DELAI_CLIENT_MS = 50_000;
 const CODES_TEXTE_PROPOSE: ReadonlySet<string> = new Set([
   "ia_indisponible",
   "plafond_atteint",

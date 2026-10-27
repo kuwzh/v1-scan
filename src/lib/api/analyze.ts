@@ -28,10 +28,11 @@ import { DUREE_ID_ANALYSE_S, cleAnalyse, encoderAnalyse } from "./cles";
 import { compterAnalyse } from "./compteur";
 import type { DependancesApi } from "./deps";
 import { creerDiagnostic, diagnosticDepuisSuivi } from "./diagnostic";
+import { variablesManquantes } from "./sante";
 import { reponseErreur, reponseJson, requeteInterSites, secondesJusquaMinuitUtc } from "./reponses";
 
 /** Pourquoi l'IA n'a pas été utilisée pour cette demande, alors qu'elle aurait pu l'être. */
-type IaCoupee = CodeDiagnostic | null;
+type IaCoupee = { code: CodeDiagnostic; technique?: string } | null;
 
 /** Échecs de l'IA qui relèvent de la configuration ou de nos réglages : à voir dans les journaux. */
 const ECHECS_A_JOURNALISER: ReadonlySet<CodeDiagnostic> = new Set([
@@ -61,7 +62,7 @@ function partielle(
   // Un lien analysé seul n'a rien à faire lire à l'IA : ce n'est pas une analyse « partielle ».
   if (ia.statut === "absente" && ia.motif === "non_necessaire") return null;
   const raison: RaisonPartielle =
-    iaCoupee === "plafond_atteint" ? "forte_affluence" : "ia_indisponible";
+    iaCoupee?.code === "plafond_atteint" ? "forte_affluence" : "ia_indisponible";
   return {
     raison,
     message: raison === "forte_affluence" ? fr.forteAffluence : fr.analysePartielle,
@@ -153,13 +154,16 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
   let iaCoupee: IaCoupee = null;
   let reservation: Reservation | null = null;
   const autorisation = iaAutorisee(deps.config);
+  // Toutes les variables qui manquent, pas seulement la première : un seul passage pour tout régler.
+  const manquantes = variablesManquantes(deps.config, { anthropic: deps.evaluateur !== null });
+  const technique = manquantes.length > 0 ? manquantes.join(", ") : undefined;
   if (aDuContenu && !deps.evaluateur) {
-    iaCoupee = "ia_non_configuree";
+    iaCoupee = { code: "ia_non_configuree", technique };
   } else if (aDuContenu && deps.evaluateur) {
     if (!autorisation.autorisee) {
-      iaCoupee = autorisation.motif;
+      iaCoupee = { code: autorisation.motif, technique };
     } else if (!stockageFiable) {
-      iaCoupee = "stockage_indisponible";
+      iaCoupee = { code: "stockage_indisponible" };
     } else {
       try {
         const r = await reserver(deps.stockage, {
@@ -172,9 +176,9 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
           maintenant,
         });
         if (r.ok) reservation = r.reservation;
-        else iaCoupee = "plafond_atteint";
+        else iaCoupee = { code: "plafond_atteint" };
       } catch {
-        iaCoupee = "stockage_indisponible";
+        iaCoupee = { code: "stockage_indisponible" };
       }
     }
   }
@@ -207,11 +211,11 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
 
   // 5. Réponse. Quand l'IA n'a pas servi, on dit pourquoi : jamais de résultat partiel silencieux.
   const echec = diagnosticDepuisSuivi(resultat.ia);
-  const codeDiagnostic = iaCoupee ?? echec?.code ?? null;
+  const codeDiagnostic = iaCoupee?.code ?? echec?.code ?? null;
   const diagnostic = codeDiagnostic
     ? creerDiagnostic(codeDiagnostic, {
         detaille: deps.config.diagnosticDetaille,
-        technique: echec?.technique,
+        technique: iaCoupee?.technique ?? echec?.technique,
       })
     : null;
   if (echec && ECHECS_A_JOURNALISER.has(echec.code)) {
@@ -223,7 +227,7 @@ export async function traiterAnalyse(request: Request, deps: DependancesApi): Pr
 
   if (!resultat.ok) {
     if (resultat.code === "ia_indisponible") {
-      return iaCoupee === "plafond_atteint"
+      return iaCoupee?.code === "plafond_atteint"
         ? reponseErreur("plafond_atteint", {
             reessayerDansS: secondesJusquaMinuitUtc(maintenant),
             diagnostic,

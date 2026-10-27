@@ -71,15 +71,16 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [ ] 8. PWA et Web Share Target (Android)
 - [ ] 9. Page Confidentialité, landing avec compteur « X annonces vérifiées »
 - [ ] 10. Lien d'annonce Vinted / Leboncoin en best-effort, derrière un flag
-- [ ] 11. README complet, checklist de mise en production, un test e2e Playwright (texte → résultat → vote)
+- [ ] 11. README complet, checklist de mise en production (dont `SHOW_DIAGNOSTICS=false`), un test e2e Playwright (texte → résultat → vote)
 
 ## API
 
-| Route                   | Rôle                                                                                                                                                                           |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `POST /api/v1/analyze`  | `multipart/form-data` : `images` (≤ 3), `texte`, `lien`, `site` (`vinted`, `leboncoin`, `facebook_marketplace`, `autre`). Renvoie `{ analyse_id, resultat, partielle, avis }`. |
-| `POST /api/v1/feedback` | JSON `{ analyse_id, vote: "up" \| "down" }`. Un vote par analyse.                                                                                                              |
-| `GET /api/v1/stats`     | `{ analyses }` : le compteur public, mis en cache (CDN et mémoire).                                                                                                            |
+| Route                   | Rôle                                                                                                                                                                                                                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/analyze`  | `multipart/form-data` : `images` (≤ 3), `texte`, `lien`, `site` (`vinted`, `leboncoin`, `facebook_marketplace`, `autre`). Renvoie `{ analyse_id, resultat, partielle, avis }`.                                                                                                           |
+| `POST /api/v1/feedback` | JSON `{ analyse_id, vote: "up" \| "down" }`. Un vote par analyse.                                                                                                                                                                                                                        |
+| `GET /api/v1/health`    | État de la configuration, sans aucune valeur secrète : `anthropic`, `upstash` (`absent` / `present` / `joignable`), `ip_secret`, `ia_active`, `modele`, plus `manque` (les variables à définir), `raison_inactive`, `environnement`, `plafond_usd` et `depense_du_jour_usd`. Gardé 30 s. |
+| `GET /api/v1/stats`     | `{ analyses }` : le compteur public, mis en cache (CDN et mémoire).                                                                                                                                                                                                                      |
 
 Les erreurs ont toujours la forme `{ erreur: { code, message } }` (codes dans `src/lib/contracts/errors.ts`).
 
@@ -160,9 +161,10 @@ gratuit de Vercel (Hobby) suffit.
 6. **Ouvrir la preview sur le téléphone.** Les previews sont protégées par défaut (Vercel
    Authentication) : on y accède connecté à son compte Vercel, ou avec un lien partageable
    (bouton Share du déploiement). L'URL se trouve dans Deployments, filtrée sur la branche.
-7. **Vérifier la configuration.** Dans Vercel → Logs, chercher `[gardo] IA désactivée` : sa présence
-   veut dire qu'une variable manque (le message dit laquelle). Dans ce cas l'app répond quand même,
-   en « règles seules ».
+7. **Vérifier la configuration.** Ouvrir `/api/v1/health` : `ia_active` doit être `true`. Sinon,
+   `manque` liste les variables à définir et `raison_inactive` donne la cause. Dans Vercel → Logs, la
+   ligne `[gardo] IA désactivée` dit la même chose. L'app répond quand même, en « règles seules »
+   (avec un « Pourquoi ? » qui nomme les variables manquantes).
 
 ### Checklist « premier test réel »
 
@@ -232,11 +234,25 @@ n'est pas encore disponible : un lien Vinted, Leboncoin ou Marketplace seul reç
 d'annonce bientôt disponible » ; accompagné de texte ou de captures, l'analyse a lieu et un avis le
 rappelle.
 
+**Les règles lisent aussi le texte brut.** Avec une IA active, les règles voient les messages qu'elle a
+rapportés _et_ le texte collé, comme filet si elle en oublie un. On en retire ce que dit l'utilisateur :
+les lignes « Moi : » et les messages que l'IA a attribués à l'acheteur, pour qu'une question comme « Tu
+acceptes PayPal ? » ne soit pas prise pour une demande du vendeur. Un signal vu deux fois ne compte
+qu'une fois. (« Acheteur : » n'est pas retiré : si l'utilisateur vend, c'est son interlocuteur.)
+
+**Transcription des captures.** Le prompt demande à l'IA de transcrire _tous_ les messages, verbatim
+(mots, ponctuation, fautes, émojis, noms et pseudos, sans anonymiser), dans l'ordre, sans résumer la
+suite d'une longue conversation. Jusqu'à 150 messages de 4 000 caractères sont conservés. Cela
+allonge la réponse : `ANTHROPIC_MAX_TOKENS=8000` et `ANTHROPIC_TIMEOUT_MS=30000` par défaut ; mesurer la
+latence avec `pnpm eval --run` avant de s'engager sur « moins de 10 s ».
+
 **Quand l'IA n'a pas servi**, le résultat dit pourquoi (`partielle.diagnostic`, et `erreur.diagnostic`
-pour des captures seules). En preview et en développement, le message nomme la cause (variable
-manquante, code HTTP d'Anthropic) ; en production, une phrase générale qui ne révèle rien de la
-configuration. `SHOW_DIAGNOSTICS=true` force le détail, `false` le masque. Les échecs liés à la
-configuration (clé refusée, schéma rejeté) sont aussi écrits dans les journaux, sans contenu.
+pour des captures seules) : _toutes_ les variables manquantes d'un coup (`ANTHROPIC_API_KEY`,
+`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `IP_HASH_SECRET`), ou le code HTTP d'Anthropic.
+C'est le comportement par défaut, partout. **Avant d'ouvrir l'app au public, mettre
+`SHOW_DIAGNOSTICS=false`** : l'utilisateur ne voit alors qu'une phrase générale qui ne révèle rien de la
+configuration. Les échecs liés à la configuration (clé refusée, schéma rejeté) sont aussi écrits dans
+les journaux, sans contenu.
 
 Les seuils et poids sont des valeurs de départ, à calibrer avec les fixtures
 (`src/lib/rules/fixtures`) puis avec le retour des utilisateurs.

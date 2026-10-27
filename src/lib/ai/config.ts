@@ -30,7 +30,7 @@ export function lireConfigIa(env: Record<string, string | undefined> = process.e
     apiKey: env.ANTHROPIC_API_KEY?.trim() || null,
     model: modele && FORME_MODELE.test(modele) ? modele : MODELE_PAR_DEFAUT,
     effort: effort && EFFORTS.includes(effort) ? effort : "low",
-    timeoutMs: entierBorne(env.ANTHROPIC_TIMEOUT_MS, 20_000, 3_000, 60_000),
-    maxTokens: entierBorne(env.ANTHROPIC_MAX_TOKENS, 6_000, 1_000, 16_000),
+    timeoutMs: entierBorne(env.ANTHROPIC_TIMEOUT_MS, 30_000, 3_000, 60_000),
+    maxTokens: entierBorne(env.ANTHROPIC_MAX_TOKENS, 8_000, 1_000, 16_000),
   };
 }

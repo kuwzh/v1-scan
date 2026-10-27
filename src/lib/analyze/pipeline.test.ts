@@ -109,7 +109,7 @@ describe("analyserDemande : séparation des auteurs", () => {
     expect(r.ok && r.resultat.signaux.filter((s) => s.source === "regle")).toEqual([]);
   });
 
-  it("le même texte, sans IA, est lu en entier faute de pouvoir distinguer les auteurs", async () => {
+  it("le même texte, sans IA : les lignes « Moi : » ne sont jamais lues, même étiquetées à la main", async () => {
     const r = await analyserDemande(
       { images: [], texte: TEXTE_AVEC_PROPOS_DE_L_ACHETEUR },
       deps(iaEnEchec()),
@@ -117,7 +117,19 @@ describe("analyserDemande : séparation des auteurs", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.resultat.meta.mode).toBe("regles_seules");
-    expect(r.resultat.signaux.map((s) => s.id)).toContain("plateforme.whatsapp");
+    expect(r.resultat.signaux.map((s) => s.id)).not.toContain("plateforme.whatsapp");
+  });
+
+  it("sans étiquette et sans IA, tout le texte est lu faute de pouvoir distinguer les auteurs", async () => {
+    const r = await analyserDemande(
+      {
+        images: [],
+        texte:
+          "Tu acceptes PayPal ? Sinon on peut continuer sur WhatsApp.\nNon, uniquement via Vinted.",
+      },
+      deps(iaEnEchec()),
+    );
+    expect(r.ok && r.resultat.signaux.map((s) => s.id)).toContain("plateforme.whatsapp");
   });
 
   it("un message du vendeur, lui, est bien analysé", async () => {

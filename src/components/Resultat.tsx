@@ -81,13 +81,16 @@ export function Resultat({
       )}
 
       {avis.map((a) => (
-        <p
+        <div
           key={a.code}
           role="status"
           className="mt-4 rounded-2xl border border-neutral-300 bg-neutral-100 p-4 text-sm text-neutral-800 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
         >
-          {a.message}
-        </p>
+          {a.code === "lien_annonce_non_lue" && (
+            <p className="font-semibold">{fr.lienAnnonce.titre}</p>
+          )}
+          <p className={a.code === "lien_annonce_non_lue" ? "mt-0.5" : undefined}>{a.message}</p>
+        </div>
       ))}
 
       <Section titre={fr.sections.signaux}>

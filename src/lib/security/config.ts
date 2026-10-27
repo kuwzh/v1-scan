@@ -20,11 +20,16 @@ export interface ConfigSecurite {
   ipSecret: string | null;
   /** Stockage partagé (Upstash Redis). `null` : repli en mémoire, valable en développement. */
   upstash: { url: string; token: string } | null;
+  /** Chacune des deux variables Upstash, pour dire laquelle manque. */
+  upstashUrlPresente: boolean;
+  upstashJetonPresent: boolean;
   production: boolean;
+  /** `preview` et `production` ont tous deux NODE_ENV=production : seul VERCEL_ENV les distingue. */
+  environnement: "production" | "preview" | "development";
   /**
    * Montrer à l'utilisateur le détail technique de pourquoi l'IA n'a pas été utilisée (variable
-   * manquante, code HTTP du fournisseur). Oui en développement et en preview, non en production,
-   * sauf `SHOW_DIAGNOSTICS=true`.
+   * manquante, code HTTP du fournisseur). Oui partout, sauf `SHOW_DIAGNOSTICS=false` : à mettre
+   * avant d'ouvrir l'app au public, pour ne laisser qu'une phrase générale.
    */
   diagnosticDetaille: boolean;
 }
@@ -55,15 +60,13 @@ function premiere(env: Env, ...cles: string[]): string | undefined {
 }
 
 function diagnosticDetaille(env: Env): boolean {
-  const force = env.SHOW_DIAGNOSTICS?.trim().toLowerCase();
-  if (force === "true") return true;
-  if (force === "false") return false;
-  // Sur Vercel, `VERCEL_ENV` distingue la production des previews (où NODE_ENV vaut aussi
-  // « production »). Ailleurs, on se fie à NODE_ENV.
-  const enProduction = env.VERCEL_ENV
-    ? env.VERCEL_ENV === "production"
-    : env.NODE_ENV === "production";
-  return !enProduction;
+  return env.SHOW_DIAGNOSTICS?.trim().toLowerCase() !== "false";
+}
+
+function environnement(env: Env): ConfigSecurite["environnement"] {
+  const v = env.VERCEL_ENV;
+  if (v === "production" || v === "preview" || v === "development") return v;
+  return env.NODE_ENV === "production" ? "production" : "development";
 }
 
 export function lireConfigSecurite(env: Env = process.env): ConfigSecurite {
@@ -91,7 +94,10 @@ export function lireConfigSecurite(env: Env = process.env): ConfigSecurite {
     ),
     ipSecret: env.IP_HASH_SECRET?.trim() || null,
     upstash: url && token ? { url, token } : null,
+    upstashUrlPresente: url !== undefined,
+    upstashJetonPresent: token !== undefined,
     production: env.NODE_ENV === "production",
+    environnement: environnement(env),
     diagnosticDetaille: diagnosticDetaille(env),
   };
 }

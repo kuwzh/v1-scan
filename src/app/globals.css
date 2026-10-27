@@ -11,6 +11,11 @@
   color-scheme: light dark;
 }
 
+/* Un champ qu'on remplit défile au-dessus du bouton « Vérifier » fixé en bas de l'écran. */
+html {
+  scroll-padding-bottom: var(--hauteur-cta, 0px);
+}
+
 body {
   font-family:
     ui-sans-serif,

@@ -302,8 +302,8 @@ describe("traiterAnalyse : plafond de dépense (5 $/jour)", () => {
   });
 
   it("le plafond se règle par variable d'environnement et coupe l'IA en cours de journée", async () => {
-    // Réservation maximale d'une analyse de texte ≈ 3 millièmes de dollar : 0,004 $ n'en couvre qu'une.
-    const { deps, ia } = creerContexteTest({ env: { DAILY_SPEND_CAP_USD: "0.004" } });
+    // Réservation maximale d'une analyse de texte ≈ 4,2 millièmes de dollar (8 000 jetons de sortie).
+    const { deps, ia } = creerContexteTest({ env: { DAILY_SPEND_CAP_USD: "0.006" } });
     const modes: string[] = [];
     for (let i = 0; i < 4; i++) {
       const r = await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_BANALE }), deps);
@@ -334,8 +334,8 @@ describe("traiterAnalyse : plafond de dépense (5 $/jour)", () => {
   });
 
   it("repart à zéro le lendemain (UTC)", async () => {
-    const { deps, horloge, ia } = creerContexteTest({ env: { DAILY_SPEND_CAP_USD: "0.004" } });
-    for (let i = 0; i < 3; i++)
+    const { deps, horloge, ia } = creerContexteTest({ env: { DAILY_SPEND_CAP_USD: "0.006" } });
+    for (let i = 0; i < 5; i++)
       await traiterAnalyse(requeteAnalyse({ texte: CONVERSATION_BANALE }), deps);
     const avant = ia.appels.length;
     horloge.ms = Date.UTC(2026, 9, 27, 0, 5);

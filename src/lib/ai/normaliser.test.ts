@@ -229,17 +229,31 @@ describe("limites", () => {
       })),
       conseils: Array.from({ length: 30 }, (_, i) => `conseil numéro ${i}`),
     });
-    r.donnees_extraites.messages = Array.from({ length: 100 }, (_, i) => ({
+    r.donnees_extraites.messages = Array.from({ length: 200 }, (_, i) => ({
       auteur: "vendeur" as const,
       confiance: "haute" as const,
       texte: `message ${i}`,
     }));
     r.donnees_extraites.liens = Array.from({ length: 50 }, (_, i) => `site${i}.com`);
     const { evaluation } = normaliser(r);
-    expect(evaluation.donnees_extraites.messages).toHaveLength(60);
+    expect(evaluation.donnees_extraites.messages).toHaveLength(150);
     expect(evaluation.donnees_extraites.liens).toHaveLength(20);
     expect(evaluation.signaux).toHaveLength(12);
     expect(evaluation.conseils).toHaveLength(8);
+  });
+
+  it("garde une conversation longue en entier (100 messages : rien n'est perdu)", () => {
+    const r = reponseModele();
+    r.donnees_extraites.messages = Array.from({ length: 100 }, (_, i) => ({
+      auteur: i % 2 ? ("acheteur" as const) : ("vendeur" as const),
+      confiance: "haute" as const,
+      texte: `message numéro ${i}`,
+    }));
+    const { evaluation } = normaliser(r);
+    expect(evaluation.donnees_extraites.messages).toHaveLength(100);
+    expect(evaluation.donnees_extraites.messages.map((m) => m.texte)).toEqual(
+      r.donnees_extraites.messages.map((m) => m.texte),
+    );
   });
 
   it("coupe les textes démesurés", () => {
@@ -249,7 +263,7 @@ describe("limites", () => {
     });
     const { evaluation } = normaliser(r);
     expect(evaluation.donnees_extraites.annonce.titre).toHaveLength(200);
-    expect(evaluation.donnees_extraites.messages[0]?.texte).toHaveLength(2000);
+    expect(evaluation.donnees_extraites.messages[0]?.texte).toHaveLength(4000);
   });
 
   it("écarte les messages vides et dédoublonne les liens", () => {

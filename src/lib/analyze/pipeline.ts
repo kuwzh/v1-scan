@@ -9,6 +9,7 @@ import { plateformeDeLien, type PlateformeAnnonce } from "../links/plateforme";
 import type { LienAnalyse } from "../links/types";
 import { collecterLiensBruts } from "../rules/contexte";
 import { evaluerRegles } from "../rules/moteur";
+import { retirerLignesAcheteur } from "../rules/texte-brut";
 import { assemblerResultat } from "./assembler";
 
 export interface DemandeAnalyse {
@@ -128,8 +129,15 @@ export async function analyserDemande(
   }
 
   const donnees = evaluation ? evaluation.donnees_extraites : donneesExtraitesVides();
-  // Texte brut seulement faute de mieux : sinon on perdrait la séparation des auteurs.
-  const texteBrut = evaluation ? null : texte;
+  // Les règles lisent aussi le texte brut, comme filet si l'IA oublie un message du vendeur. On en
+  // retire ce que dit l'acheteur (lignes « Moi : » et messages que l'IA lui a attribués) : la
+  // séparation des auteurs reste respectée, et les signaux trouvés deux fois ne comptent qu'une.
+  const messagesAcheteur = evaluation
+    ? evaluation.donnees_extraites.messages
+        .filter((m) => m.auteur === "acheteur")
+        .map((m) => m.texte)
+    : [];
+  const texteBrut = texte === null ? null : retirerLignesAcheteur(texte, messagesAcheteur);
 
   const bruts = collecterLiensBruts(donnees, texte);
   if (lien !== null) bruts.push(lien);

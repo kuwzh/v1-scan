@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DiagnosticSchema } from "./diagnostic";
+import { CodeDiagnosticSchema, DiagnosticSchema } from "./diagnostic";
 import { AnalysisResultSchema } from "./result";
 
 /**
@@ -39,3 +39,25 @@ export type FeedbackResponse = z.infer<typeof FeedbackResponseSchema>;
 /** Réponse de `GET /api/v1/stats`. `null` : compteur indisponible, on ne l'affiche pas. */
 export const StatsResponseSchema = z.object({ analyses: z.number().int().min(0).nullable() });
 export type StatsResponse = z.infer<typeof StatsResponseSchema>;
+
+/**
+ * Réponse de `GET /api/v1/health` : l'état de la configuration, sans jamais aucune valeur secrète
+ * (seulement présent / absent, le nom du modèle et les noms des variables qui manquent).
+ */
+export const HealthResponseSchema = z.object({
+  anthropic: z.enum(["present", "absent"]),
+  /** `present` : configurée mais injoignable ; `joignable` : une lecture a réussi. */
+  upstash: z.enum(["absent", "present", "joignable"]),
+  ip_secret: z.enum(["present", "absent"]),
+  ia_active: z.boolean(),
+  modele: z.string(),
+  /** Variables d'environnement qui manquent pour que l'IA soit active. */
+  manque: z.array(z.string()),
+  /** Pourquoi `ia_active` est faux ; `null` quand elle est active. */
+  raison_inactive: CodeDiagnosticSchema.nullable(),
+  environnement: z.enum(["production", "preview", "development"]),
+  plafond_usd: z.number(),
+  /** `null` : stockage injoignable. */
+  depense_du_jour_usd: z.number().nullable(),
+});
+export type HealthResponse = z.infer<typeof HealthResponseSchema>;
