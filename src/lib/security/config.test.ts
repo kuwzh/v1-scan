@@ -56,6 +56,32 @@ describe("lireConfigSecurite : valeurs de départ", () => {
     expect(lireConfigSecurite({ DAILY_SPEND_CAP_USD: valeur }).plafondJournalierUsd).toBe(5);
   });
 
+  it("accepte les noms KV_REST_API_* que l'intégration Vercel peut injecter", () => {
+    const c = lireConfigSecurite({
+      KV_REST_API_URL: "https://kv.upstash.io",
+      KV_REST_API_TOKEN: "tk",
+    });
+    expect(c.upstash).toEqual({ url: "https://kv.upstash.io", token: "tk" });
+  });
+
+  it("les noms UPSTASH_REDIS_REST_* ont priorité, et une variable vide est ignorée", () => {
+    const c = lireConfigSecurite({
+      UPSTASH_REDIS_REST_URL: "https://a.upstash.io",
+      UPSTASH_REDIS_REST_TOKEN: "",
+      KV_REST_API_URL: "https://b.upstash.io",
+      KV_REST_API_TOKEN: "kv-token",
+    });
+    expect(c.upstash).toEqual({ url: "https://a.upstash.io", token: "kv-token" });
+  });
+
+  it("ne lit jamais le jeton en lecture seule : il ne permet pas d'écrire", () => {
+    const c = lireConfigSecurite({
+      KV_REST_API_URL: "https://kv.upstash.io",
+      KV_REST_API_READ_ONLY_TOKEN: "lecture-seule",
+    });
+    expect(c.upstash).toBeNull();
+  });
+
   it("Upstash exige l'URL ET le jeton", () => {
     expect(lireConfigSecurite({ UPSTASH_REDIS_REST_URL: "https://x" }).upstash).toBeNull();
     expect(lireConfigSecurite({ UPSTASH_REDIS_REST_TOKEN: "t" }).upstash).toBeNull();

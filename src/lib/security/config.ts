@@ -39,9 +39,21 @@ function nombreBorne(
   return entier && !Number.isInteger(n) ? defaut : n;
 }
 
+/** Première variable renseignée parmi `cles` (les variables vides comptent pour absentes). */
+function premiere(env: Env, ...cles: string[]): string | undefined {
+  for (const cle of cles) {
+    const valeur = env[cle]?.trim();
+    if (valeur) return valeur;
+  }
+  return undefined;
+}
+
 export function lireConfigSecurite(env: Env = process.env): ConfigSecurite {
-  const url = env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  // L'intégration Upstash de Vercel peut injecter les noms `KV_REST_API_*` (hérités de Vercel KV)
+  // au lieu de `UPSTASH_REDIS_REST_*` : les deux sont acceptés, comme dans le client Upstash.
+  // Le jeton en lecture seule (`KV_REST_API_READ_ONLY_TOKEN`) ne convient pas et n'est jamais lu.
+  const url = premiere(env, "UPSTASH_REDIS_REST_URL", "KV_REST_API_URL");
+  const token = premiere(env, "UPSTASH_REDIS_REST_TOKEN", "KV_REST_API_TOKEN");
   return {
     limiteParHeure: nombreBorne(env.RATE_LIMIT_PER_HOUR, LIMITE_PAR_HEURE_DEFAUT, 1, 1_000, true),
     limiteParJour: nombreBorne(env.RATE_LIMIT_PER_DAY, LIMITE_PAR_JOUR_DEFAUT, 1, 10_000, true),

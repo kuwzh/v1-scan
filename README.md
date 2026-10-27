@@ -71,7 +71,7 @@ extension Chrome ou une API B2B. L'API sera versionnée (`/api/v1/...`) pour la 
 - [ ] 8. PWA et Web Share Target (Android)
 - [ ] 9. Page Confidentialité, landing avec compteur « X annonces vérifiées »
 - [ ] 10. Lien d'annonce Vinted / Leboncoin en best-effort, derrière un flag
-- [ ] 11. README complet et checklist de mise en production
+- [ ] 11. README complet, checklist de mise en production, un test e2e Playwright (texte → résultat → vote)
 
 ## API
 
@@ -119,10 +119,57 @@ en « règles seules » et un avertissement de configuration (sans aucun contenu
 le journal. En développement, un repli en mémoire est utilisé. Si Upstash tombe en cours de route,
 même comportement : les analyses restent servies sans IA.
 
+### Premier déploiement sur Vercel (preview)
+
+À faire avant la checklist ci-dessous, qui se déroule ensuite sur l'URL de la preview. Le plan
+gratuit de Vercel (Hobby) suffit.
+
+1. **Branche de production.** Le dépôt n'a pour l'instant qu'une branche, donc Vercel la prendrait
+   pour la production. Pour avoir une vraie _preview_, créer sur GitHub une branche `main` (depuis la
+   branche de travail) et la définir comme branche par défaut (Settings → Branches). La branche de
+   travail devient alors une preview ; `main` sera la production, avec ses propres variables.
+2. **Une base Upstash par environnement.** Créer `gardo-preview` (et plus tard `gardo-prod`) dans la
+   console Upstash, région européenne (Francfort ou Irlande), plan gratuit. Au choix :
+   - depuis Vercel (Storage → Upstash Redis), en ne connectant la base `gardo-preview` qu'à
+     l'environnement **Preview** du projet ;
+   - ou à la main : console Upstash → la base → REST API → copier l'URL et le jeton, puis les ajouter
+     dans Vercel (Settings → Environment Variables), cochés pour **Preview** seulement.
+
+   Les noms `UPSTASH_REDIS_REST_URL` / `_TOKEN` et `KV_REST_API_URL` / `_TOKEN` sont tous deux
+   acceptés. Le jeton « lecture seule » ne convient pas.
+
+3. **Clé Anthropic dédiée à la preview.** Dans la console Anthropic, créer une clé à part et lui
+   fixer une limite de dépense mensuelle basse (par exemple 10 $) : c'est un second filet, indépendant
+   de `DAILY_SPEND_CAP_USD`. L'ajouter dans Vercel pour **Preview**, en « Sensitive ».
+4. **Variables d'environnement (Preview).**
+
+   | Variable               | Valeur                                                                |
+   | ---------------------- | --------------------------------------------------------------------- |
+   | `ANTHROPIC_API_KEY`    | la clé de la preview                                                  |
+   | `IP_HASH_SECRET`       | `openssl rand -hex 32` (un secret différent par environnement)        |
+   | Upstash                | voir l'étape 2                                                        |
+   | `NEXT_PUBLIC_SITE_URL` | facultatif pour l'instant (servira à la carte de partage et à la PWA) |
+
+   Pour tester vite : `RATE_LIMIT_PER_HOUR=3` et `DAILY_SPEND_CAP_USD=0.02`, à remettre ensuite.
+   Une variable modifiée ne s'applique qu'au déploiement suivant : relancer un déploiement.
+
+5. **Importer le projet.** Vercel → Add New → Project → choisir `kuwzh/v1-scan` (installer l'app
+   GitHub de Vercel avec accès à ce dépôt si besoin). Next.js est détecté, rien à modifier. Dans
+   Settings : Node.js 22, et région des fonctions proche de la base Upstash (Paris `cdg1` ou
+   Francfort `fra1`).
+6. **Ouvrir la preview sur le téléphone.** Les previews sont protégées par défaut (Vercel
+   Authentication) : on y accède connecté à son compte Vercel, ou avec un lien partageable
+   (bouton Share du déploiement). L'URL se trouve dans Deployments, filtrée sur la branche.
+7. **Vérifier la configuration.** Dans Vercel → Logs, chercher `[gardo] IA désactivée` : sa présence
+   veut dire qu'une variable manque (le message dit laquelle). Dans ce cas l'app répond quand même,
+   en « règles seules ».
+
 ### Checklist « premier test réel »
 
 Rien de ce qui suit n'a pu être vérifié sans identifiants : à faire une fois, dans l'ordre, avant de
-mettre l'app devant du public. Mettre les clés dans `.env.local` (jamais commité).
+mettre l'app devant du public. Soit en local (clés dans `.env.local`, jamais commité), soit sur la
+preview Vercel configurée ci-dessus ; les vérifications dans la console Upstash valent pour les deux.
+Pour les commandes `curl`, lancer la preview avec un lien partageable, ou tester depuis le téléphone.
 
 **Upstash**
 

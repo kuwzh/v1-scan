@@ -68,7 +68,7 @@ export function dependancesParDefaut(): DependancesApi {
     console.warn(
       `[gardo] IA désactivée : ${
         ia.motif === "stockage_non_partage"
-          ? "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN manquants"
+          ? "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (ou KV_REST_API_URL / KV_REST_API_TOKEN) manquants"
           : "IP_HASH_SECRET manquant"
       } (rate limiting et plafond de dépense inopérants sans eux).`,
     );
