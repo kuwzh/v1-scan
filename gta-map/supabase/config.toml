@@ -1,0 +1,5 @@
+project_id = "gta-map"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
